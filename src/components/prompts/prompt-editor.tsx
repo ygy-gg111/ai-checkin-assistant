@@ -11,7 +11,7 @@ import {
   Typography
 } from 'antd';
 import {useLocale, useTranslations} from 'next-intl';
-import {useEffect, useState} from 'react';
+import {useState} from 'react';
 
 const {Title, Paragraph, Text} = Typography;
 const {TextArea} = Input;
@@ -235,21 +235,22 @@ Variables: {{user_input}} · {{day_count}}`
   const activeConfig = configs[activeTab];
 
   // Form States (loaded per activeConfig)
-  const [persona, setPersona] = useState('');
-  const [promptCode, setPromptCode] = useState('');
-  const [testInput, setTestInput] = useState('');
+  const [persona, setPersona] = useState(() => isEn ? configs.swimming.defaultPersona.en : configs.swimming.defaultPersona.zh);
+  const [promptCode, setPromptCode] = useState(() => isEn ? configs.swimming.defaultPrompt.en : configs.swimming.defaultPrompt.zh);
+  const [testInput, setTestInput] = useState(() => isEn ? configs.swimming.defaultTestInput.en : configs.swimming.defaultTestInput.zh);
 
   // Loading/Result States
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<{title: string; body: string} | null>(null);
 
-  // Sync state when tab changes
-  useEffect(() => {
-    setPersona(isEn ? activeConfig.defaultPersona.en : activeConfig.defaultPersona.zh);
-    setPromptCode(isEn ? activeConfig.defaultPrompt.en : activeConfig.defaultPrompt.zh);
-    setTestInput(isEn ? activeConfig.defaultTestInput.en : activeConfig.defaultTestInput.zh);
+  const handleTabChange = (key: TopicType) => {
+    const nextConfig = configs[key];
+    setActiveTab(key);
+    setPersona(isEn ? nextConfig.defaultPersona.en : nextConfig.defaultPersona.zh);
+    setPromptCode(isEn ? nextConfig.defaultPrompt.en : nextConfig.defaultPrompt.zh);
+    setTestInput(isEn ? nextConfig.defaultTestInput.en : nextConfig.defaultTestInput.zh);
     setTestResult(null);
-  }, [activeTab, locale]);
+  };
 
   const handleTestGenerate = () => {
     if (!testInput.trim()) {
@@ -306,11 +307,11 @@ Variables: {{user_input}} · {{day_count}}`
               <button
                 key={key}
                 className={`prompt-template-btn${isActive ? ' active' : ''}`}
-                onClick={() => setActiveTab(key)}
+                onClick={() => handleTabChange(key)}
               >
                 <span className="prompt-template-icon">{cfg.icon}</span>
                 <div>
-                  <b>{t(key as any)}</b>
+                  <b>{t(key)}</b>
                   <small>{cfg.version} · {isEn ? 'Active' : '已启用'}</small>
                 </div>
               </button>
@@ -355,7 +356,7 @@ Variables: {{user_input}} · {{day_count}}`
           {/* Template Code */}
           <div className="prompt-field">
             <label>
-              {t('templateLabel', {topic: t(activeTab as any)})}
+              {t('templateLabel', {topic: t(activeTab)})}
               <span>{t('charAndVarCount', {chars: promptCode.length, vars: activeConfig.variablesCount})}</span>
             </label>
             <TextArea

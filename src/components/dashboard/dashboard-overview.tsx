@@ -3,7 +3,6 @@
 import {
   ArrowRightOutlined,
   CalendarOutlined,
-  EditOutlined,
   PlusOutlined,
   RiseOutlined,
   StarOutlined,
@@ -11,7 +10,6 @@ import {
 } from '@ant-design/icons';
 import {App, Button, Card, Col, Row, Tag, Typography} from 'antd';
 import {useTranslations} from 'next-intl';
-import {useEffect, useState} from 'react';
 
 import {useRouter} from '@/i18n/navigation';
 
@@ -21,19 +19,17 @@ export function DashboardOverview() {
   const t = useTranslations('Dashboard');
   const router = useRouter();
   const {message} = App.useApp();
-  const [formattedDate, setFormattedDate] = useState('');
-
-  useEffect(() => {
+  const formattedDate = (() => {
     const now = new Date();
     // Format date in current locale if possible, or fallback to standard format matching the UI sketch: "SUNDAY · JUL 05"
     try {
       const options: Intl.DateTimeFormatOptions = { weekday: 'long', month: 'short', day: '2-digit' };
       const formatted = now.toLocaleDateString(undefined, options).toUpperCase().replace(',', ' ·');
-      setFormattedDate(formatted);
+      return formatted;
     } catch {
-      setFormattedDate('TODAY');
+      return 'TODAY';
     }
-  }, []);
+  })();
 
   const handleCopy = async (text: string) => {
     try {

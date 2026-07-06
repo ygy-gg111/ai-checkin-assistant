@@ -14,6 +14,8 @@ const {TextArea} = Input;
 
 type Topic = 'swimming' | 'running' | 'study' | 'daily';
 type Style = 'natural' | 'funny' | 'warm' | 'minimal';
+type TopicLabelKey = 'topicSwimming' | 'topicRunning' | 'topicStudy' | 'topicDaily';
+type StyleLabelKey = 'styleNatural' | 'styleFunny' | 'styleWarm' | 'styleMinimal';
 
 interface GeneratedResult {
   title: string;
@@ -22,14 +24,14 @@ interface GeneratedResult {
   coverText: string;
 }
 
-const TOPICS: {key: Topic; labelKey: string; color: string}[] = [
+const TOPICS: {key: Topic; labelKey: TopicLabelKey; color: string}[] = [
   {key: 'swimming', labelKey: 'topicSwimming', color: '#2563eb'},
   {key: 'running', labelKey: 'topicRunning', color: '#059669'},
   {key: 'study', labelKey: 'topicStudy', color: '#d97706'},
   {key: 'daily', labelKey: 'topicDaily', color: '#7c3aed'},
 ];
 
-const STYLES: {key: Style; labelKey: string}[] = [
+const STYLES: {key: Style; labelKey: StyleLabelKey}[] = [
   {key: 'natural', labelKey: 'styleNatural'},
   {key: 'funny', labelKey: 'styleFunny'},
   {key: 'warm', labelKey: 'styleWarm'},
@@ -226,7 +228,7 @@ export function CreateCheckin() {
                         style={topic === key ? {borderColor: color, background: '#eff6ff', color} : {}}
                         onClick={() => setTopic(key)}
                       >
-                        {t(labelKey as any)}
+                        {t(labelKey)}
                       </button>
                     ))}
                   </div>
@@ -258,7 +260,7 @@ export function CreateCheckin() {
                     className={`create-chip${style === key ? ' active' : ''}`}
                     onClick={() => setStyle(key)}
                   >
-                    {t(labelKey as any)}
+                    {t(labelKey)}
                   </button>
                 ))}
               </div>
