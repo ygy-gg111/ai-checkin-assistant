@@ -1,0 +1,108 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique @db.VarChar(191)
+  passwordHash String   @db.VarChar(255)
+  name         String?  @db.VarChar(100)
+  avatar       String?  @db.VarChar(2048)
+  posts        Post[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Post {
+  id               String          @id @default(cuid())
+  userId           String?
+  user             User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
+  promptTemplateId String?
+  promptTemplate   PromptTemplate? @relation(fields: [promptTemplateId], references: [id], onDelete: SetNull)
+  topic            String          @db.VarChar(50)
+  dayCount         Int?
+  style            String          @default("normal") @db.VarChar(50)
+  inputText        String          @db.Text
+  analysisJson     Json?
+  title            String          @db.VarChar(255)
+  content          String          @db.Text
+  tags             Json
+  coverText        String?         @db.VarChar(255)
+  provider         String          @default("openai") @db.VarChar(50)
+  model            String          @default("gpt-4o-mini") @db.VarChar(100)
+  status           PostStatus      @default(GENERATED)
+  checkinDate      DateTime        @default(now())
+  images           PostImage[]
+  aiUsageLogs      AIUsageLog[]
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  @@index([userId, createdAt])
+  @@index([promptTemplateId])
+  @@index([topic, checkinDate])
+  @@index([status, createdAt])
+}
+
+model PostImage {
+  id        String   @id @default(cuid())
+  postId    String
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  url       String   @db.VarChar(2048)
+  width     Int?
+  height    Int?
+  size      Int?
+  mimeType  String?  @db.VarChar(100)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([postId, sortOrder])
+  @@index([postId])
+}
+
+model PromptTemplate {
+  id        String   @id @default(cuid())
+  name      String   @db.VarChar(100)
+  scene     String   @db.VarChar(50)
+  version   String   @default("1.0") @db.VarChar(20)
+  content   String   @db.Text
+  isActive  Boolean  @default(true)
+  posts     Post[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([scene, version])
+  @@index([scene, isActive])
+}
+
+model AIUsageLog {
+  id           String   @id @default(cuid())
+  postId       String?
+  post         Post?    @relation(fields: [postId], references: [id], onDelete: SetNull)
+  provider     String   @db.VarChar(50)
+  model        String   @db.VarChar(100)
+  success      Boolean  @default(true)
+  errorCode    String?  @db.VarChar(100)
+  errorMessage String?  @db.Text
+  inputTokens  Int?
+  outputTokens Int?
+  totalTokens  Int?
+  durationMs   Int?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([postId])
+  @@index([provider, model])
+  @@index([success, createdAt])
+}
+
+enum PostStatus {
+  DRAFT
+  GENERATED
+  DELETED
+}
