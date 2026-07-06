@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Check-in Assistant - 登录注册设计效果演示 (已调色)</title>
+  <!-- 引入现代字体 Outfit 和 Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <style>
+    /* 对应项目原生的全局色彩变量 */
+    :root {
+      --app-bg: #f8fafc;
+      --app-border: #e5e7eb;
+      --app-text: #111827;
+      --app-subtext: #6b7280;
+      --app-primary: #2563eb;
+      --app-primary-hover: #1d4ed8;
+      --app-primary-light: #eff6ff;
+      --logo-gradient: linear-gradient(145deg, #2563eb, #7c3aed);
+
+      --card-bg: #ffffff;
+      --input-bg: #ffffff;
+      --input-border: #d1d5db;
+      --input-focus-shadow: rgba(37, 99, 235, 0.15);
+
+      --error-color: #ef4444;
+      --error-bg: rgba(239, 68, 68, 0.05);
+      --error-border: rgba(239, 68, 68, 0.15);
+
+      --success-color: #10b981;
+      --success-bg: rgba(16, 185, 129, 0.05);
+      --success-border: rgba(16, 185, 129, 0.15);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif;
+      background-color: var(--app-bg);
+      color: var(--app-text);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* 炫酷淡色渐变背景光斑 */
+    .bg-glow-1 {
+      position: absolute;
+      top: -10%;
+      left: -10%;
+      width: 50%;
+      height: 50%;
+      background: radial-gradient(circle, rgba(37, 99, 235, 0.06) 0%, rgba(0,0,0,0) 70%);
+      filter: blur(60px);
+      z-index: 1;
+      pointer-events: none;
+    }
+
+    .bg-glow-2 {
+      position: absolute;
+      bottom: -10%;
+      right: -10%;
+      width: 50%;
+      height: 50%;
+      background: radial-gradient(circle, rgba(124, 58, 237, 0.05) 0%, rgba(0,0,0,0) 70%);
+      filter: blur(60px);
+      z-index: 1;
+      pointer-events: none;
+    }
+
+    /* 模拟背景：与当前项目 1:1 对齐的浅色 Dashboard 框架 */
+    .dashboard-mockup {
+      position: absolute;
+      width: 90%;
+      max-width: 1200px;
+      height: 80vh;
+      background: #ffffff;
+      border: 1px solid var(--app-border);
+      border-radius: 20px;
+      display: grid;
+      grid-template-columns: 240px 1fr;
+      z-index: 2;
+      filter: blur(4px);
+      opacity: 0.7;
+      user-select: none;
+      pointer-events: none;
+      box-shadow: 0 4px 20px rgba(15, 23, 42, 0.03);
+    }
+
+    .sidebar-mock {
+      border-right: 1px solid var(--app-border);
+      padding: 30px 22px;
+      background: #ffffff;
+    }
+    .logo-mock-item {
+      height: 34px;
+      background: linear-gradient(145deg, #e0e7ff, #f3e8ff);
+      margin-bottom: 40px;
+      border-radius: 8px;
+      width: 60%;
+    }
+    .sidebar-item-mock {
+      height: 38px;
+      background: #f1f5f9;
+      margin-bottom: 12px;
+      border-radius: 8px;
+    }
+    .main-mock {
+      padding: 40px;
+      background: var(--app-bg);
+    }
+    .header-mock {
+      height: 48px;
+      background: #ffffff;
+      margin-bottom: 30px;
+      border-radius: 12px;
+      width: 30%;
+      border: 1px solid var(--app-border);
+    }
+    .grid-mock {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+    }
+    .card-mock {
+      height: 180px;
+      background: #ffffff;
+      border: 1px solid var(--app-border);
+      border-radius: 16px;
+      box-shadow: 0 2px 10px rgba(15, 23, 42, 0.02);
+    }
+
+    /* 全局遮罩层 (与当前项目的 app-header 毛玻璃质感保持一致) */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(15, 23, 42, 0.25);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 10;
+      padding: 20px;
+      transition: opacity 0.3s ease;
+    }
+
+    /* 弹窗主体 (配合项目的圆角与白色系卡片风格) */
+    .auth-modal {
+      width: 100%;
+      max-width: 450px;
+      background: var(--card-bg);
+      border: 1px solid var(--app-border);
+      border-radius: 20px;
+      box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.15),
+                  0 0 30px 0 rgba(37, 99, 235, 0.02);
+      padding: 36px 40px 40px 40px;
+      position: relative;
+      overflow: hidden;
+      transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    /* 关闭按钮 */
+    .close-btn {
+      position: absolute;
+      top: 24px;
+      right: 28px;
+      background: transparent;
+      border: none;
+      color: var(--app-subtext);
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 8px;
+    }
+
+    .close-btn:hover {
+      color: var(--app-text);
+      background: #f1f5f9;
+    }
+
+    /* 弹窗头部 */
+    .modal-header {
+      margin-bottom: 28px;
+    }
+
+    .logo-container {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .logo-icon {
+      width: 32px;
+      height: 32px;
+      background: var(--logo-gradient);
+      border-radius: 9px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 16px;
+      color: white;
+      font-family: 'Outfit', sans-serif;
+    }
+
+    .logo-text {
+      font-family: 'Outfit', sans-serif;
+      font-weight: 750;
+      font-size: 17px;
+      color: var(--app-text);
+    }
+
+    .modal-title {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--app-text);
+      margin-bottom: 6px;
+      letter-spacing: -0.5px;
+    }
+
+    .modal-subtitle {
+      font-size: 14px;
+      color: var(--app-subtext);
+      line-height: 1.5;
+    }
+
+    /* 表单组件 */
+    .auth-form {
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .form-label {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--app-text);
+      padding-left: 2px;
+    }
+
+    .input-wrapper {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+
+    .form-input {
+      width: 100%;
+      height: 46px;
+      background: var(--input-bg);
+      border: 1px solid var(--input-border);
+      border-radius: 10px;
+      padding: 0 16px;
+      color: var(--app-text);
+      font-size: 14px;
+      transition: all 0.2s ease;
+    }
+
+    .form-input:focus {
+      outline: none;
+      border-color: var(--app-primary);
+      box-shadow: 0 0 0 3px var(--input-focus-shadow);
+    }
+
+    .form-input::placeholder {
+      color: #9ca3af;
+    }
+
+    /* 密码显示隐藏按钮 */
+    .toggle-password {
+      position: absolute;
+      right: 16px;
+      background: transparent;
+      border: none;
+      color: var(--app-subtext);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      user-select: none;
+      transition: color 0.2s ease;
+    }
+
+    .toggle-password:hover {
+      color: var(--app-text);
+    }
+
+    /* 提交按钮 (对齐项目 app-upgrade-card 和 hero-card 主按钮风格) */
+    .submit-btn {
+      height: 46px;
+      background: var(--app-primary);
+      border: none;
+      border-radius: 10px;
+      color: white;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      margin-top: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 6px 16px rgba(37, 99, 235, 0.15);
+    }
+
+    .submit-btn:hover {
+      background: var(--app-primary-hover);
+      box-shadow: 0 8px 20px rgba(37, 99, 235, 0.25);
+      transform: translateY(-1px);
+    }
+
+    .submit-btn:active {
+      transform: translateY(1px);
+    }
+
+    /* 切换链接 */
+    .switch-link-container {
+      text-align: center;
+      margin-top: 20px;
+      font-size: 13px;
+      color: var(--app-subtext);
+    }
+
+    .switch-link {
+      color: var(--app-primary);
+      text-decoration: none;
+      font-weight: 600;
+      margin-left: 4px;
+      transition: color 0.2s ease;
+      cursor: pointer;
+    }
+
+    .switch-link:hover {
+      color: var(--app-primary-hover);
+      text-decoration: underline;
+    }
+
+    /* 成功状态展示 */
+    .success-alert {
+      display: none;
+      background: var(--success-bg);
+      border: 1px solid var(--success-border);
+      border-radius: 10px;
+      padding: 12px 16px;
+      color: var(--success-color);
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 16px;
+      animation: fadeIn 0.3s ease;
+    }
+
+    /* 错误提示 */
+    .error-msg {
+      font-size: 12px;
+      color: var(--error-color);
+      margin-top: 4px;
+      display: none;
+    }
+
+    /* 表单隐藏与渐变动画 */
+    .form-container {
+      display: none;
+      animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .form-container.active {
+      display: block;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(6px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    /* 移动端适配 (对齐页面 640px/900px 响应式) */
+    @media (max-width: 576px) {
+      .auth-modal {
+        max-width: 100%;
+        height: 100%;
+        border-radius: 0;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        padding: 28px;
+        border: none;
+      }
+      body {
+        background-color: var(--card-bg);
+      }
+      .modal-overlay {
+        padding: 0;
+      }
+      .close-btn {
+        top: 24px;
+        right: 24px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 背景装饰光斑 -->
+  <div class="bg-glow-1"></div>
+  <div class="bg-glow-2"></div>
+
+  <!-- 模拟背景 Dashboard (与 globals.css 的 light 风格和 layout 对齐) -->
+  <div class="dashboard-mockup">
+    <div class="sidebar-mock">
+      <div class="logo-mock-item"></div>
+      <div class="sidebar-item-mock" style="width: 80%"></div>
+      <div class="sidebar-item-mock" style="width: 90%; background: #eff6ff; border-left: 3px solid var(--app-primary)"></div>
+      <div class="sidebar-item-mock" style="width: 70%"></div>
+      <div class="sidebar-item-mock" style="width: 75%"></div>
+    </div>
+    <div class="main-mock">
+      <div class="header-mock"></div>
+      <div class="grid-mock">
+        <div class="card-mock"></div>
+        <div class="card-mock"></div>
+        <div class="card-mock"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 弹窗层 -->
+  <div class="modal-overlay" id="modalOverlay">
+    <div class="auth-modal" id="authModal">
+
+      <!-- 关闭按钮 -->
+      <button class="close-btn" onclick="mockClose()">
+        <span>关闭</span>
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M1 1L11 11M1 11L11 1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>
+      </button>
+
+      <!-- 注册成功提示框 -->
+      <div class="success-alert" id="successAlert">
+        ✨ 账号创建成功！已自动填入邮箱，请开始登录。
+      </div>
+
+      <!-- ================= 登录模式 ================= -->
+      <div class="form-container active" id="loginFormContainer">
+        <div class="modal-header">
+          <div class="logo-container">
+            <div class="logo-icon">✦</div>
+            <span class="logo-text">AI Check-in</span>
+          </div>
+          <h2 class="modal-title">欢迎回来</h2>
+          <p class="modal-subtitle">登录后继续记录普通而具体的每一天</p>
+        </div>
+
+        <form class="auth-form" onsubmit="mockSubmit(event, 'login')">
+          <div class="form-group">
+            <label class="form-label" for="loginEmail">邮箱</label>
+            <div class="input-wrapper">
+              <input class="form-input" type="email" id="loginEmail" placeholder="name@example.com" required>
+            </div>
+            <div class="error-msg" id="loginEmailError">请输入有效的邮箱地址</div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="loginPassword">密码</label>
+            <div class="input-wrapper">
+              <input class="form-input" type="password" id="loginPassword" placeholder="••••••••" required>
+              <button type="button" class="toggle-password" onclick="togglePasswordVisibility('loginPassword', this)">显示</button>
+            </div>
+          </div>
+
+          <button type="submit" class="submit-btn">登录</button>
+        </form>
+
+        <div class="switch-link-container">
+          还没有账号？<span class="switch-link" onclick="switchMode('register')">立即注册</span>
+        </div>
+      </div>
+
+      <!-- ================= 注册模式 ================= -->
+      <div class="form-container" id="registerFormContainer">
+        <div class="modal-header">
+          <div class="logo-container">
+            <div class="logo-icon">✦</div>
+            <span class="logo-text">AI Check-in</span>
+          </div>
+          <h2 class="modal-title">创建账号</h2>
+          <p class="modal-subtitle">从今天开始保存自己的成长记录</p>
+        </div>
+
+        <form class="auth-form" onsubmit="mockSubmit(event, 'register')">
+          <div class="form-group">
+            <label class="form-label" for="registerName">昵称（选填）</label>
+            <div class="input-wrapper">
+              <input class="form-input" type="text" id="registerName" placeholder="普通记录者">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="registerEmail">邮箱</label>
+            <div class="input-wrapper">
+              <input class="form-input" type="email" id="registerEmail" placeholder="name@example.com" required>
+            </div>
+            <div class="error-msg" id="registerEmailError">请输入有效的邮箱地址</div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="registerPassword">密码</label>
+            <div class="input-wrapper">
+              <input class="form-input" type="password" id="registerPassword" placeholder="••••••••" required>
+              <button type="button" class="toggle-password" onclick="togglePasswordVisibility('registerPassword', this)">显示</button>
+            </div>
+            <div class="error-msg" id="registerPasswordError">密码需为 8-128 个字符</div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="registerConfirmPassword">确认密码</label>
+            <div class="input-wrapper">
+              <input class="form-input" type="password" id="registerConfirmPassword" placeholder="••••••••" required>
+            </div>
+            <div class="error-msg" id="registerConfirmPasswordError">两次输入的密码不一致</div>
+          </div>
+
+          <button type="submit" class="submit-btn">创建账号</button>
+        </form>
+
+        <div class="switch-link-container">
+          已有账号？<span class="switch-link" onclick="switchMode('login')">返回登录</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    // 切换密码显示/隐藏
+    function togglePasswordVisibility(inputId, btn) {
+      const input = document.getElementById(inputId);
+      if (input.type === "password") {
+        input.type = "text";
+        btn.textContent = "隐藏";
+      } else {
+        input.type = "password";
+        btn.textContent = "显示";
+      }
+    }
+
+    // 切换登录/注册表单模式
+    function switchMode(mode) {
+      const loginForm = document.getElementById('loginFormContainer');
+      const registerForm = document.getElementById('registerFormContainer');
+      const authModal = document.getElementById('authModal');
+      const successAlert = document.getElementById('successAlert');
+
+      if (mode === 'register') {
+        successAlert.style.display = 'none';
+      }
+
+      // 切换动效
+      authModal.style.transform = 'scale(0.985)';
+      authModal.style.opacity = '0.95';
+
+      setTimeout(() => {
+        if (mode === 'register') {
+          loginForm.classList.remove('active');
+          registerForm.classList.add('active');
+        } else {
+          registerForm.classList.remove('active');
+          loginForm.classList.add('active');
+        }
+        authModal.style.transform = 'scale(1)';
+        authModal.style.opacity = '1';
+      }, 150);
+    }
+
+    // 模拟关闭动作
+    function mockClose() {
+      const overlay = document.getElementById('modalOverlay');
+      overlay.style.opacity = '0';
+      overlay.style.pointerEvents = 'none';
+
+      // 创建一个恢复按钮以供演示使用
+      setTimeout(() => {
+        if (!document.getElementById('demoRestoreBtn')) {
+          const restoreBtn = document.createElement('button');
+          restoreBtn.id = 'demoRestoreBtn';
+          restoreBtn.innerText = '重新打开登录弹窗（演示用）';
+          restoreBtn.style.position = 'fixed';
+          restoreBtn.style.bottom = '20px';
+          restoreBtn.style.left = '50%';
+          restoreBtn.style.transform = 'translateX(-50%)';
+          restoreBtn.style.padding = '12px 24px';
+          restoreBtn.style.background = 'var(--app-primary)';
+          restoreBtn.style.color = '#fff';
+          restoreBtn.style.border = 'none';
+          restoreBtn.style.borderRadius = '30px';
+          restoreBtn.style.cursor = 'pointer';
+          restoreBtn.style.zIndex = '100';
+          restoreBtn.style.fontWeight = '600';
+          restoreBtn.style.boxShadow = '0 6px 16px rgba(37, 99, 235, 0.2)';
+          restoreBtn.onclick = function() {
+            overlay.style.opacity = '1';
+            overlay.style.pointerEvents = 'auto';
+            restoreBtn.remove();
+          };
+          document.body.appendChild(restoreBtn);
+        }
+      }, 300);
+    }
+
+    // 模拟提交表单
+    function mockSubmit(event, type) {
+      event.preventDefault();
+
+      if (type === 'login') {
+        const email = document.getElementById('loginEmail').value;
+        alert(`模拟登录成功！\n邮箱：${email}\n将写入 HttpOnly Cookie 并刷新页面。`);
+        mockClose();
+      } else if (type === 'register') {
+        const email = document.getElementById('registerEmail').value;
+        const password = document.getElementById('registerPassword').value;
+        const confirmPassword = document.getElementById('registerConfirmPassword').value;
+
+        if (password !== confirmPassword) {
+          document.getElementById('registerConfirmPasswordError').style.display = 'block';
+          return;
+        } else {
+          document.getElementById('registerConfirmPasswordError').style.display = 'none';
+        }
+
+        if (password.length < 8) {
+          document.getElementById('registerPasswordError').style.display = 'block';
+          return;
+        } else {
+          document.getElementById('registerPasswordError').style.display = 'none';
+        }
+
+        document.getElementById('loginEmail').value = email;
+        const successAlert = document.getElementById('successAlert');
+        successAlert.style.display = 'block';
+        switchMode('login');
+      }
+    }
+  </script>
+</body>
+</html>

@@ -4,12 +4,15 @@ import {
   CopyOutlined,
   EllipsisOutlined,
   EyeOutlined,
+  FileTextOutlined,
   SearchOutlined
 } from '@ant-design/icons';
 import {App, Button, Card, Col, DatePicker, Input, Row, Select, Space, Tag, Typography} from 'antd';
 import {useLocale, useTranslations} from 'next-intl';
 import {useState} from 'react';
 
+import {GuestEmptyState} from '@/components/auth/guest-empty-state';
+import {useAuth} from '@/hooks/use-auth';
 import {useRouter} from '@/i18n/navigation';
 
 const {Title, Paragraph, Text} = Typography;
@@ -33,12 +36,23 @@ export function HistoryRecords() {
   const router = useRouter();
   const {message} = App.useApp();
   const isEn = locale === 'en';
+  const {isAuthenticated, status} = useAuth();
 
   // Filters State
   const [searchQuery, setSearchQuery] = useState('');
   const [topicFilter, setTopicFilter] = useState('all');
   const [styleFilter, setStyleFilter] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
+
+  if (status !== 'loading' && !isAuthenticated) {
+    return (
+      <GuestEmptyState
+        icon={<FileTextOutlined />}
+        titleKey="guest_historyTitle"
+        descKey="guest_historyDesc"
+      />
+    );
+  }
 
   // Mock Database Records
   const allRecords: HistoryItem[] = [
@@ -197,8 +211,8 @@ export function HistoryRecords() {
           className="history-select"
           value={topicFilter}
           onChange={(val) => setTopicFilter(val)}
-          bordered={false}
-          dropdownStyle={{borderRadius: 10}}
+          variant="borderless"
+          styles={{ popup: { root: { borderRadius: 10 } } }}
         >
           <Option value="all">{t('allTopics')}</Option>
           <Option value="swimming">{isEn ? 'Swim' : '游泳'}</Option>
@@ -212,8 +226,8 @@ export function HistoryRecords() {
           className="history-select"
           value={styleFilter}
           onChange={(val) => setStyleFilter(val)}
-          bordered={false}
-          dropdownStyle={{borderRadius: 10}}
+          variant="borderless"
+          styles={{ popup: { root: { borderRadius: 10 } } }}
         >
           <Option value="all">{t('allStyles')}</Option>
           <Option value="natural">{isEn ? 'Natural' : '真实自然'}</Option>

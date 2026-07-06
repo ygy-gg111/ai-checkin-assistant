@@ -6,12 +6,15 @@ import {
   EditOutlined,
   FileTextOutlined,
   GlobalOutlined,
+  LoginOutlined,
+  LogoutOutlined,
   MenuOutlined,
   SettingOutlined,
   UserOutlined
 } from '@ant-design/icons';
 import {
   App as AntdApp,
+  Avatar,
   Button,
   ConfigProvider,
   Drawer,
@@ -26,7 +29,9 @@ import type {MenuProps} from 'antd';
 import {useLocale, useTranslations} from 'next-intl';
 import {useState} from 'react';
 
+import {AuthModal} from '@/components/auth/auth-modal';
 import {appTheme} from '@/config/theme';
+import {useAuth} from '@/hooks/use-auth';
 import {usePathname, useRouter} from '@/i18n/navigation';
 import type {AppLocale} from '@/i18n/routing';
 
@@ -36,11 +41,14 @@ type NavKey = '/' | '/create' | '/calendar' | '/history' | '/prompt-settings' | 
 
 export function DashboardShell({children}: {children: React.ReactNode}) {
   const t = useTranslations('Navigation');
+  const tAuth = useTranslations('Auth');
   const locale = useLocale();
   const router = useRouter();
   const pathname = usePathname();
   const screens = Grid.useBreakpoint();
   const [drawerOpen, setDrawerOpen] = useState(false);
+
+  const {user, isAuthenticated, status, openAuthModal, logout} = useAuth();
 
   const navigationItems: MenuProps['items'] = [
     {key: '/', icon: <DashboardOutlined />, label: t('dashboard')},
@@ -67,6 +75,25 @@ export function DashboardShell({children}: {children: React.ReactNode}) {
   const switchLocale: MenuProps['onClick'] = ({key}) => {
     router.replace(pathname, {locale: key as AppLocale});
   };
+
+  // ── User dropdown menu (when authenticated) ─────────────────────────────
+
+  const userMenuItems: MenuProps['items'] = [
+    {
+      key: 'profile',
+      icon: <UserOutlined />,
+      label: tAuth('userCenter'),
+      onClick: () => router.push('/profile'),
+    },
+    {type: 'divider'},
+    {
+      key: 'logout',
+      icon: <LogoutOutlined />,
+      label: tAuth('logoutButton'),
+      danger: true,
+      onClick: logout,
+    },
+  ];
 
   const navigation = (
     <Menu
@@ -120,12 +147,47 @@ export function DashboardShell({children}: {children: React.ReactNode}) {
                 {!screens.lg && <Typography.Text strong>AI Check-in</Typography.Text>}
               </Space>
 
-              <Dropdown
-                menu={{items: localeItems, selectedKeys: [locale], onClick: switchLocale}}
-                trigger={['click']}
-              >
-                <Button icon={<GlobalOutlined />}>{screens.sm ? t('language') : locale.toUpperCase()}</Button>
-              </Dropdown>
+              <Space size={12}>
+                {/* Language switcher */}
+                <Dropdown
+                  menu={{items: localeItems, selectedKeys: [locale], onClick: switchLocale}}
+                  trigger={['click']}
+                >
+                  <Button icon={<GlobalOutlined />}>{screens.sm ? t('language') : locale.toUpperCase()}</Button>
+                </Dropdown>
+
+                {/* Auth button / User avatar */}
+                {status !== 'loading' && (
+                  <>
+                    {isAuthenticated && user ? (
+                      <Dropdown menu={{items: userMenuItems}} trigger={['click']} placement="bottomRight">
+                        <Button type="text" className="auth-user-btn">
+                          <Avatar
+                            size={28}
+                            src={user.avatar}
+                            icon={!user.avatar ? <UserOutlined /> : undefined}
+                            style={{
+                              background: 'linear-gradient(145deg, #2563eb, #7c3aed)',
+                              marginRight: 6,
+                            }}
+                          />
+                          {screens.sm && (
+                            <span className="auth-user-name">{user.name || user.email.split('@')[0]}</span>
+                          )}
+                        </Button>
+                      </Dropdown>
+                    ) : (
+                      <Button
+                        type="primary"
+                        icon={<LoginOutlined />}
+                        onClick={() => openAuthModal('login')}
+                      >
+                        {screens.sm ? tAuth('loginButton') : ''}
+                      </Button>
+                    )}
+                  </>
+                )}
+              </Space>
             </Header>
 
             <Content className="app-content">
@@ -133,6 +195,9 @@ export function DashboardShell({children}: {children: React.ReactNode}) {
             </Content>
           </Layout>
         </Layout>
+
+        {/* Global Auth Modal */}
+        <AuthModal />
       </AntdApp>
     </ConfigProvider>
   );

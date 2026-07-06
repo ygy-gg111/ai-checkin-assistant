@@ -1,9 +1,14 @@
-import { NextRequest } from 'next/server';
-import { apiSuccess, apiError } from '@/lib/api-response';
+import {NextRequest} from 'next/server';
 
-export async function POST(req: NextRequest) {
-  try {
-    const body = await req.json().catch(() => ({}));
+import {ApiError} from '@/lib/api-handler';
+import {withAuth} from '@/lib/auth/guard';
+import {apiSuccess} from '@/lib/api-response';
+
+export const POST = withAuth(async (req: NextRequest) => {
+    const body = await req.json().catch(() => null);
+    if (!body || typeof body !== 'object') {
+      throw new ApiError('BAD_REQUEST', '请求内容必须是有效的 JSON');
+    }
     const {
       topic,
       dayCount,
@@ -15,10 +20,10 @@ export async function POST(req: NextRequest) {
 
     // 参数校验
     if (!topic || !inputText) {
-      return apiError('打卡主题(topic)和用户描述(inputText)为必填项', 400);
+      throw new ApiError('VALIDATION_ERROR', '打卡主题(topic)和用户描述(inputText)为必填项');
     }
     if (!Array.isArray(images) || images.length === 0) {
-      return apiError('请传参至少一张打卡图片地址(images)', 400);
+      throw new ApiError('VALIDATION_ERROR', '请传参至少一张打卡图片地址(images)');
     }
 
     // TODO: 1. 依据 promptTemplateId 或 topic 查询对应的 PromptTemplate (Prisma PromptTemplate.findFirst)
@@ -54,7 +59,4 @@ export async function POST(req: NextRequest) {
     };
 
     return apiSuccess(resultData);
-  } catch (error) {
-    return apiError('AI 智能生成文案服务异常，请稍后重试', 502);
-  }
-}
+});

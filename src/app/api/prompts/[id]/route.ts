@@ -1,16 +1,18 @@
-import { NextRequest } from 'next/server';
-import { apiSuccess, apiError } from '@/lib/api-response';
+import {NextRequest} from 'next/server';
 
-export async function PUT(
+import {ApiError} from '@/lib/api-handler';
+import {withAuth} from '@/lib/auth/guard';
+import {apiSuccess} from '@/lib/api-response';
+
+export const PUT = withAuth(async (
   req: NextRequest,
-  context: { params: Promise<{ id: string }> | { id: string } }
-) {
-  try {
+  context: {params: Promise<{id: string}> | {id: string}}
+) => {
     const resolvedParams = await Promise.resolve(context.params);
-    const { id } = resolvedParams;
+    const {id} = resolvedParams;
 
     if (!id) {
-      return apiError('模板 ID 参数错误', 400);
+      throw new ApiError('VALIDATION_ERROR', '模板 ID 参数错误');
     }
 
     const body = await req.json().catch(() => ({}));
@@ -18,7 +20,7 @@ export async function PUT(
 
     // 参数验证
     if (!content && name === undefined && isActive === undefined) {
-      return apiError('未提交任何需要更新的字段', 400);
+      throw new ApiError('VALIDATION_ERROR', '未提交任何需要更新的字段');
     }
 
     // TODO: 1. 检查模板是否存在 (Prisma PromptTemplate.findUnique)
@@ -29,7 +31,4 @@ export async function PUT(
       id,
       updatedAt: new Date().toISOString(),
     });
-  } catch (error) {
-    return apiError('更新 Prompt 模板失败', 500);
-  }
-}
+});

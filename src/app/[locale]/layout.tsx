@@ -4,6 +4,7 @@ import {hasLocale, NextIntlClientProvider} from 'next-intl';
 import {getMessages, getTranslations, setRequestLocale} from 'next-intl/server';
 import {notFound} from 'next/navigation';
 
+import {AuthProvider} from '@/contexts/auth-context';
 import {routing} from '@/i18n/routing';
 
 import 'antd/dist/reset.css';
@@ -38,7 +39,9 @@ export default async function LocaleLayout({children, params}: Props) {
       <body>
         <AntdRegistry>
           <NextIntlClientProvider messages={messages}>
-            {children}
+            <AuthProvider>
+              {children}
+            </AuthProvider>
           </NextIntlClientProvider>
         </AntdRegistry>
       </body>

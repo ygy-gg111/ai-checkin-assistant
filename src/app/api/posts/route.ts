@@ -1,13 +1,19 @@
-import { NextRequest } from 'next/server';
-import { apiSuccess, apiError } from '@/lib/api-response';
+import {NextRequest} from 'next/server';
 
-export async function GET(req: NextRequest) {
-  try {
-    const { searchParams } = new URL(req.url);
-    const page = parseInt(searchParams.get('page') || '1', 10);
-    const pageSize = parseInt(searchParams.get('pageSize') || '10', 10);
-    const topic = searchParams.get('topic');
-    const keyword = searchParams.get('keyword');
+import {ApiError} from '@/lib/api-handler';
+import {withAuth} from '@/lib/auth/guard';
+import {apiSuccess} from '@/lib/api-response';
+
+export const GET = withAuth(async (req: NextRequest) => {
+  const {searchParams} = new URL(req.url);
+  const page = parseInt(searchParams.get('page') || '1', 10);
+  const pageSize = parseInt(searchParams.get('pageSize') || '10', 10);
+  const topic = searchParams.get('topic');
+  const keyword = searchParams.get('keyword');
+
+  if (!Number.isInteger(page) || page < 1 || !Number.isInteger(pageSize) || pageSize < 1 || pageSize > 100) {
+    throw new ApiError('VALIDATION_ERROR', '分页参数不合法');
+  }
 
     // TODO: 1. 从登录态解析用户 ID (如果启用了多用户模式)
     // TODO: 2. 组装查询条件 where = { userId, topic, OR: [ { title: { contains: keyword } }, { content: { contains: keyword } } ] }
@@ -40,15 +46,12 @@ export async function GET(req: NextRequest) {
       },
     ];
 
-    return apiSuccess({
-      list: mockList,
-      pagination: {
-        page,
-        pageSize,
-        total: 2,
-      },
-    });
-  } catch (error) {
-    return apiError('获取打卡历史列表异常', 500);
-  }
-}
+  return apiSuccess({
+    list: mockList,
+    pagination: {
+      page,
+      pageSize,
+      total: 2,
+    },
+  });
+});

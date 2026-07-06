@@ -12,6 +12,10 @@ import {
 } from 'antd';
 import {useLocale, useTranslations} from 'next-intl';
 import {useState} from 'react';
+import {SettingOutlined} from '@ant-design/icons';
+
+import {GuestEmptyState} from '@/components/auth/guest-empty-state';
+import {useAuth} from '@/hooks/use-auth';
 
 const {Title, Paragraph, Text} = Typography;
 const {TextArea} = Input;
@@ -42,6 +46,8 @@ export function PromptEditor() {
   const locale = useLocale();
   const {message} = App.useApp();
   const isEn = locale === 'en';
+
+  const {isAuthenticated, status} = useAuth();
 
   // Static configs to prevent next-intl variable formatting errors due to {{variables}} curly braces.
   const configs: Record<TopicType, TemplateConfig> = {
@@ -242,6 +248,16 @@ Variables: {{user_input}} · {{day_count}}`
   // Loading/Result States
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<{title: string; body: string} | null>(null);
+
+  if (status !== 'loading' && !isAuthenticated) {
+    return (
+      <GuestEmptyState
+        icon={<SettingOutlined />}
+        titleKey="guest_promptsTitle"
+        descKey="guest_promptsDesc"
+      />
+    );
+  }
 
   const handleTabChange = (key: TopicType) => {
     const nextConfig = configs[key];

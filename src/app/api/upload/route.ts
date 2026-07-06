@@ -1,8 +1,10 @@
-import { NextRequest } from 'next/server';
-import { apiSuccess, apiError } from '@/lib/api-response';
+import {NextRequest} from 'next/server';
 
-export async function POST(req: NextRequest) {
-  try {
+import {ApiError} from '@/lib/api-handler';
+import {withAuth} from '@/lib/auth/guard';
+import {apiSuccess} from '@/lib/api-response';
+
+export const POST = withAuth(async (req: NextRequest) => {
     const formData = await req.formData();
     const files = formData.getAll('files') as File[];
 
@@ -15,11 +17,11 @@ export async function POST(req: NextRequest) {
     }
 
     if (files.length === 0) {
-      return apiError('请至少选择一张要上传的图片', 400);
+      throw new ApiError('VALIDATION_ERROR', '请至少选择一张要上传的图片');
     }
 
     if (files.length > 9) {
-      return apiError('最多支持同时上传 9 张图片', 400);
+      throw new ApiError('VALIDATION_ERROR', '最多支持同时上传 9 张图片');
     }
 
     // TODO: 1. 检查图片格式 (image/jpeg, image/png, image/webp) 与大小 (如限制单张最大 10MB)
@@ -43,8 +45,5 @@ export async function POST(req: NextRequest) {
       };
     });
 
-    return apiSuccess({ images });
-  } catch (error) {
-    return apiError('图片上传失败或文件体积过大', 500);
-  }
-}
+    return apiSuccess({images});
+});

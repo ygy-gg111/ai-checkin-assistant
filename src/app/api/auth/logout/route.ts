@@ -1,10 +1,9 @@
-import { NextRequest } from 'next/server';
-import { apiSuccess } from '@/lib/api-response';
+import {withApiHandler} from '@/lib/api-handler';
+import {apiSuccess} from '@/lib/api-response';
+import {AUTH_COOKIE_NAME} from '@/lib/auth/session';
 
-export async function POST(req: NextRequest) {
-  // TODO: 1. 可在服务端记录 Token 失效（如用 Redis 黑名单机制等）
-  // TODO: 2. 清除 HttpOnly Cookie
+export const POST = withApiHandler(async () => {
   const response = apiSuccess(null, '退出登录成功');
-  response.cookies.delete('auth_token');
+  response.cookies.delete(AUTH_COOKIE_NAME);
   return response;
-}
+});

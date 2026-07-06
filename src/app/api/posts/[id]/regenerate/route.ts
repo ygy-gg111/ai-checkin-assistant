@@ -1,16 +1,18 @@
-import { NextRequest } from 'next/server';
-import { apiSuccess, apiError } from '@/lib/api-response';
+import {NextRequest} from 'next/server';
 
-export async function POST(
+import {ApiError} from '@/lib/api-handler';
+import {withAuth} from '@/lib/auth/guard';
+import {apiSuccess} from '@/lib/api-response';
+
+export const POST = withAuth(async (
   req: NextRequest,
-  context: { params: Promise<{ id: string }> | { id: string } }
-) {
-  try {
+  context: {params: Promise<{id: string}> | {id: string}}
+) => {
     const resolvedParams = await Promise.resolve(context.params);
-    const { id } = resolvedParams;
+    const {id} = resolvedParams;
 
     if (!id) {
-      return apiError('打卡记录 ID 参数错误', 400);
+      throw new ApiError('VALIDATION_ERROR', '打卡记录 ID 参数错误');
     }
 
     const body = await req.json().catch(() => ({}));
@@ -41,7 +43,4 @@ export async function POST(
     };
 
     return apiSuccess(regenerateData);
-  } catch (error) {
-    return apiError('重新生成文案失败，AI 服务繁忙', 502);
-  }
-}
+});

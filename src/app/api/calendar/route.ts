@@ -1,16 +1,18 @@
-import { NextRequest } from 'next/server';
-import { apiSuccess, apiError } from '@/lib/api-response';
+import {NextRequest} from 'next/server';
 
-export async function GET(req: NextRequest) {
-  try {
-    const { searchParams } = new URL(req.url);
+import {ApiError} from '@/lib/api-handler';
+import {withAuth} from '@/lib/auth/guard';
+import {apiSuccess} from '@/lib/api-response';
+
+export const GET = withAuth(async (req: NextRequest) => {
+    const {searchParams} = new URL(req.url);
     const now = new Date();
     const year = parseInt(searchParams.get('year') || String(now.getFullYear()), 10);
     const month = parseInt(searchParams.get('month') || String(now.getMonth() + 1), 10);
     const topic = searchParams.get('topic');
 
     if (isNaN(year) || isNaN(month) || month < 1 || month > 12) {
-      return apiError('年份和月份参数不合法', 400);
+      throw new ApiError('VALIDATION_ERROR', '年份和月份参数不合法');
     }
 
     // TODO: 1. 依据 year 与 month 构建月份的首尾日期查询范围 (startDate, endDate)
@@ -38,7 +40,4 @@ export async function GET(req: NextRequest) {
       month,
       days,
     });
-  } catch (error) {
-    return apiError('获取打卡日历概览失败', 500);
-  }
-}
+});

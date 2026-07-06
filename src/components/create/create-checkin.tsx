@@ -9,6 +9,8 @@ import type {UploadFile} from 'antd';
 import {useTranslations} from 'next-intl';
 import {useRef, useState} from 'react';
 
+import {useAuth} from '@/hooks/use-auth';
+
 const {Title, Paragraph, Text} = Typography;
 const {TextArea} = Input;
 
@@ -55,7 +57,9 @@ const MOCK_RESULT: GeneratedResult = {
 
 export function CreateCheckin() {
   const t = useTranslations('Create');
+  const tAuth = useTranslations('Auth');
   const {message} = App.useApp();
+  const {isAuthenticated, status, openAuthModal} = useAuth();
 
   // Pre-filled with mock data so the UI is immediately visible
   const [fileList, setFileList] = useState<UploadFile[]>(MOCK_IMAGES);
@@ -72,6 +76,11 @@ export function CreateCheckin() {
 
   // Simulate generating
   const handleGenerate = async () => {
+    if (status !== 'loading' && !isAuthenticated) {
+      message.warning(tAuth('requireLogin'));
+      openAuthModal('login');
+      return;
+    }
     if (!description.trim()) {
       message.warning(t('descRequired'));
       return;
@@ -142,7 +151,14 @@ export function CreateCheckin() {
               </label>
               <div
                 className="create-drop-zone"
-                onClick={() => fileInputRef.current?.click()}
+                onClick={() => {
+                  if (status !== 'loading' && !isAuthenticated) {
+                    message.warning(tAuth('requireLogin'));
+                    openAuthModal('login');
+                    return;
+                  }
+                  fileInputRef.current?.click();
+                }}
               >
                 <input
                   ref={fileInputRef}

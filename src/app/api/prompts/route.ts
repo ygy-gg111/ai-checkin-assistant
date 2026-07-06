@@ -1,9 +1,10 @@
-import { NextRequest } from 'next/server';
-import { apiSuccess, apiError } from '@/lib/api-response';
+import {NextRequest} from 'next/server';
 
-export async function GET(req: NextRequest) {
-  try {
-    const { searchParams } = new URL(req.url);
+import {withAuth} from '@/lib/auth/guard';
+import {apiSuccess} from '@/lib/api-response';
+
+export const GET = withAuth(async (req: NextRequest) => {
+    const {searchParams} = new URL(req.url);
     const scene = searchParams.get('scene');
 
     // TODO: 1. 从数据库中查询所有的 Prompt 模板 (Prisma PromptTemplate.findMany)
@@ -50,7 +51,4 @@ export async function GET(req: NextRequest) {
       : allTemplates;
 
     return apiSuccess(data);
-  } catch (error) {
-    return apiError('获取 Prompt 模板列表失败', 500);
-  }
-}
+});

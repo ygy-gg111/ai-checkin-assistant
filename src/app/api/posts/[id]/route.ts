@@ -1,16 +1,20 @@
-import { NextRequest } from 'next/server';
-import { apiSuccess, apiError } from '@/lib/api-response';
+import {NextRequest} from 'next/server';
 
-export async function GET(
+import {ApiError} from '@/lib/api-handler';
+import {withAuth} from '@/lib/auth/guard';
+import {apiSuccess} from '@/lib/api-response';
+
+type PostRouteContext = {params: Promise<{id: string}> | {id: string}};
+
+export const GET = withAuth(async (
   req: NextRequest,
-  context: { params: Promise<{ id: string }> | { id: string } }
-) {
-  try {
+  context: PostRouteContext
+) => {
     const resolvedParams = await Promise.resolve(context.params);
-    const { id } = resolvedParams;
+    const {id} = resolvedParams;
 
     if (!id) {
-      return apiError('打卡记录 ID 参数错误', 400);
+      throw new ApiError('VALIDATION_ERROR', '打卡记录 ID 参数错误');
     }
 
     // TODO: 1. 依据 id 与 userId 查询数据库记录 (Prisma Post.findUnique({ where: { id }, include: { images: true } }))
@@ -60,28 +64,21 @@ export async function GET(
     };
 
     return apiSuccess(mockDetail);
-  } catch (error) {
-    return apiError('获取打卡详情异常', 500);
-  }
-}
+});
 
-export async function DELETE(
+export const DELETE = withAuth(async (
   req: NextRequest,
-  context: { params: Promise<{ id: string }> | { id: string } }
-) {
-  try {
+  context: PostRouteContext
+) => {
     const resolvedParams = await Promise.resolve(context.params);
-    const { id } = resolvedParams;
+    const {id} = resolvedParams;
 
     if (!id) {
-      return apiError('打卡记录 ID 参数错误', 400);
+      throw new ApiError('VALIDATION_ERROR', '打卡记录 ID 参数错误');
     }
 
     // TODO: 1. 检查是否存在该条数据并且是否有权限删除
     // TODO: 2. 物理删除 (Prisma Post.delete) 或软删除 (Prisma Post.update({ where: { id }, data: { status: 'DELETED' } }))
 
-    return apiSuccess({ id }, '删除成功');
-  } catch (error) {
-    return apiError('删除打卡记录异常', 500);
-  }
-}
+    return apiSuccess({id}, '删除成功');
+});

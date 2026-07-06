@@ -14,6 +14,8 @@ import {Button, Card, Col, Row, Tag, Typography} from 'antd';
 import {useLocale, useTranslations} from 'next-intl';
 import {useState} from 'react';
 
+import {GuestEmptyState} from '@/components/auth/guest-empty-state';
+import {useAuth} from '@/hooks/use-auth';
 import {useRouter} from '@/i18n/navigation';
 
 const {Title, Paragraph, Text} = Typography;
@@ -41,11 +43,22 @@ export function CheckinCalendar() {
   const locale = useLocale();
   const router = useRouter();
   const isEn = locale === 'en';
+  const {isAuthenticated, status} = useAuth();
 
   // Mock initial selected date: July 5, 2026
   const [selectedDayNum, setSelectedDayNum] = useState<number>(5);
   const [currentYear, setCurrentYear] = useState<number>(2026);
   const [currentMonth, setCurrentMonth] = useState<number>(7);
+
+  if (status !== 'loading' && !isAuthenticated) {
+    return (
+      <GuestEmptyState
+        icon={<CalendarOutlined />}
+        titleKey="guest_calendarTitle"
+        descKey="guest_calendarDesc"
+      />
+    );
+  }
 
   // Stats
   const stats = [

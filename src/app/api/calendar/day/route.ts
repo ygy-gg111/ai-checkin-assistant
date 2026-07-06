@@ -1,14 +1,16 @@
-import { NextRequest } from 'next/server';
-import { apiSuccess, apiError } from '@/lib/api-response';
+import {NextRequest} from 'next/server';
 
-export async function GET(req: NextRequest) {
-  try {
-    const { searchParams } = new URL(req.url);
+import {ApiError} from '@/lib/api-handler';
+import {withAuth} from '@/lib/auth/guard';
+import {apiSuccess} from '@/lib/api-response';
+
+export const GET = withAuth(async (req: NextRequest) => {
+    const {searchParams} = new URL(req.url);
     const date = searchParams.get('date');
     const topic = searchParams.get('topic');
 
     if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-      return apiError('请传入正确的日期格式参数 (YYYY-MM-DD)', 400);
+      throw new ApiError('VALIDATION_ERROR', '请传入正确的日期格式参数 (YYYY-MM-DD)');
     }
 
     // TODO: 1. 依据 date 构造该日期的 00:00:00 到 23:59:59 的时间查询范围
@@ -32,7 +34,4 @@ export async function GET(req: NextRequest) {
       date,
       list: mockList,
     });
-  } catch (error) {
-    return apiError('获取单日打卡列表异常', 500);
-  }
-}
+});

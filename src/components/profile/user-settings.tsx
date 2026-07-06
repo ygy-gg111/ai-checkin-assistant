@@ -9,8 +9,12 @@ import {
   Space,
   Typography
 } from 'antd';
+import {SettingOutlined} from '@ant-design/icons';
 import {useLocale, useTranslations} from 'next-intl';
 import {useState} from 'react';
+
+import {GuestEmptyState} from '@/components/auth/guest-empty-state';
+import {useAuth} from '@/hooks/use-auth';
 
 const {Title, Paragraph, Text} = Typography;
 const {TextArea} = Input;
@@ -21,6 +25,7 @@ export function UserSettings() {
   const locale = useLocale();
   const {message} = App.useApp();
   const isEn = locale === 'en';
+  const {isAuthenticated, status} = useAuth();
 
   // Form Initial States
   const [nickname, setNickname] = useState(isEn ? 'Regular Coder' : '普通程序员');
@@ -35,6 +40,16 @@ export function UserSettings() {
   const [outputLang, setOutputLang] = useState(isEn ? 'en' : 'zh-CN');
   const [storageMethod, setStorageMethod] = useState('cloudflare-r2');
   const [storageRegion, setStorageRegion] = useState('ap-east');
+
+  if (status !== 'loading' && !isAuthenticated) {
+    return (
+      <GuestEmptyState
+        icon={<SettingOutlined />}
+        titleKey="guest_profileTitle"
+        descKey="guest_profileDesc"
+      />
+    );
+  }
 
   const handleSave = () => {
     message.success(isEn ? 'Settings saved successfully!' : '所有设置已保存成功！');
