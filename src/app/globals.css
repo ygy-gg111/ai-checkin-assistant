@@ -319,7 +319,7 @@ body {
   display: grid;
   /* minmax(0,...) prevents columns from overflowing their grid cell */
   grid-template-columns: minmax(0, 1.18fr) minmax(0, 0.92fr);
-  gap: 20px;
+  gap: 18px;
   max-width: 1160px;
   margin: 0 auto;
   /* Desktop: fill exactly the space between header, top padding, and footer.
@@ -349,18 +349,17 @@ body {
 }
 
 .create-panel-head {
-  padding: 20px 22px 14px;
+  padding: 16px 20px 11px;
   border-bottom: 1px solid #f1f5f9;
   flex-shrink: 0; /* never shrink the header */
 }
 
 .create-form {
-  padding: 20px 22px;
+  padding: 14px 20px 15px;
   display: flex;
   flex-direction: column;
-  gap: 20px;
-  /* internal scroll */
-  overflow-y: auto;
+  gap: 11px;
+  overflow: hidden;
   flex: 1;
   min-height: 0;
   scrollbar-width: thin;
@@ -376,15 +375,15 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 8px;
+  margin-bottom: 4px;
   font-weight: 650;
-  font-size: 14px;
+  font-size: 13px;
   color: var(--app-text);
 }
 
 /* Drop Zone */
 .create-drop-zone {
-  padding: 24px;
+  padding: 12px 16px;
   border: 1.5px dashed #bfdbfe;
   border-radius: 14px;
   background: #f8fbff;
@@ -398,8 +397,8 @@ body {
 }
 
 .create-upload-icon {
-  width: 45px;
-  height: 45px;
+  width: 36px;
+  height: 36px;
   margin: 0 auto;
   display: grid;
   place-items: center;
@@ -410,16 +409,35 @@ body {
 
 /* Image Thumbnails */
 .create-thumbs {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 10px;
-  margin-top: 14px;
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 2px;
   text-align: left;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(37, 99, 235, 0.22) transparent;
+}
+
+.create-thumbs::-webkit-scrollbar {
+  height: 4px;
+}
+
+.create-thumbs::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.create-thumbs::-webkit-scrollbar-thumb {
+  background: rgba(37, 99, 235, 0.22);
+  border-radius: 999px;
 }
 
 .create-thumb {
-  height: 82px;
-  border-radius: 11px;
+  width: 58px;
+  height: 58px;
+  flex: 0 0 58px;
+  border-radius: 9px;
   position: relative;
   overflow: hidden;
   cursor: pointer;
@@ -448,16 +466,16 @@ body {
 
 .create-thumb-remove {
   position: absolute;
-  right: 5px;
-  top: 5px;
-  width: 20px;
-  height: 20px;
+  right: 3px;
+  top: 3px;
+  width: 17px;
+  height: 17px;
   border: 0;
   border-radius: 50%;
   background: rgba(17,24,39,0.6);
   color: #fff;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 12px;
   display: grid;
   place-items: center;
   line-height: 1;
@@ -480,7 +498,7 @@ body {
 /* Chips / Topic & Style Selector */
 .create-chips {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   flex-wrap: wrap;
 }
 
@@ -488,9 +506,9 @@ body {
   border: 1px solid var(--app-border);
   background: #fff;
   border-radius: 9px;
-  padding: 8px 14px;
+  padding: 7px 12px;
   color: #64748b;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -517,18 +535,76 @@ body {
   box-shadow: 0 0 0 3px rgba(219,234,254,0.5) !important;
 }
 
+.create-prompt-select {
+  width: 100%;
+}
+
+.create-prompt-select .ant-select-selector {
+  min-height: 36px;
+  border-radius: 12px !important;
+  border-color: #dbe3ee !important;
+  align-items: center;
+}
+
+.create-prompt-select.ant-select-focused .ant-select-selector {
+  border-color: #93c5fd !important;
+  box-shadow: 0 0 0 3px rgba(219,234,254,0.5) !important;
+}
+
+.create-prompt-hint {
+  margin-top: 6px;
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.create-prompt-preview {
+  margin-top: 6px;
+  padding: 8px 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.create-prompt-preview-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 3px;
+  color: #475569;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.create-prompt-preview-title span:last-child {
+  color: #94a3b8;
+  font-weight: 600;
+}
+
+.create-prompt-preview p {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.35;
+  white-space: normal;
+}
+
 /* ── Preview Panel ── */
 .create-preview-panel {
   /* height is controlled by the grid row (100% of workspace height) */
 }
 
 .create-preview-body {
-  padding: 20px 22px;
+  padding: 14px 20px 15px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  /* internal scroll */
-  overflow-y: auto;
+  gap: 10px;
+  overflow: hidden;
   flex: 1;
   min-height: 0;
   scrollbar-width: thin;
@@ -539,8 +615,8 @@ body {
 .create-ai-state {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 14px;
+  gap: 10px;
+  padding: 10px;
   border: 1px solid #dbeafe;
   border-radius: 13px;
   background: linear-gradient(100deg, #f8fbff, #f5f3ff);
@@ -557,8 +633,8 @@ body {
 }
 
 .create-spark {
-  width: 38px;
-  height: 38px;
+  width: 32px;
+  height: 32px;
   border-radius: 11px;
   display: grid;
   place-items: center;
@@ -569,7 +645,7 @@ body {
 }
 
 .create-image-preview-block {
-  padding: 15px;
+  padding: 10px;
   border: 1px solid var(--app-border);
   border-radius: 13px;
   background: #fbfcff;
@@ -577,15 +653,15 @@ body {
 
 .create-image-preview-strip {
   display: grid;
-  grid-template-columns: repeat(3, 64px);
-  grid-auto-rows: 64px;
+  grid-template-columns: repeat(3, 54px);
+  grid-auto-rows: 54px;
   justify-content: center;
-  gap: 8px;
+  gap: 7px;
   width: fit-content;
   max-width: 100%;
-  margin: 10px auto 0;
-  padding: 10px;
-  border-radius: 14px;
+  margin: 6px auto 0;
+  padding: 6px;
+  border-radius: 12px;
   background: #f4f7fb;
 }
 
@@ -594,7 +670,7 @@ body {
   width: 100%;
   aspect-ratio: 1;
   border: 1px solid #dbe4f0;
-  border-radius: 10px;
+  border-radius: 8px;
   background-color: #fff;
   background-repeat: no-repeat;
   cursor: pointer;
@@ -628,7 +704,7 @@ body {
 
 /* Result Blocks */
 .create-result-block {
-  padding: 15px;
+  padding: 10px;
   border: 1px solid var(--app-border);
   border-radius: 13px;
   transition: box-shadow 0.2s ease;
@@ -643,7 +719,7 @@ body {
   color: #64748b;
   font-size: 11px;
   font-weight: 600;
-  margin-bottom: 9px;
+  margin-bottom: 5px;
 }
 
 /* Tags */
@@ -667,7 +743,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 70px;
+  min-height: 56px;
   border-radius: 11px;
   background: linear-gradient(135deg, #e0f2fe, #ede9fe);
   font-size: 17px;
@@ -682,7 +758,7 @@ body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 40px 20px;
+  padding: 20px 16px;
   color: #94a3b8;
   text-align: center;
 }
@@ -777,10 +853,12 @@ body {
 
 @media (max-width: 640px) {
   .create-thumbs {
-    grid-template-columns: repeat(3, 1fr);
+    display: flex;
   }
   .create-thumb {
-    height: 68px;
+    width: 58px;
+    height: 58px;
+    flex-basis: 58px;
   }
 }
 
@@ -1007,11 +1085,29 @@ body {
 }
 
 /* Detail Sidebar */
+.calendar-detail-card-wrapper {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
 .calendar-detail-panel {
-  align-self: start;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
+  position: absolute !important;
+  top: 0 !important;
+  bottom: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.calendar-detail-panel .ant-card-body {
+  display: flex !important;
+  flex-direction: column !important;
+  flex: 1 !important;
+  height: 100% !important;
+  min-height: 0 !important;
 }
 
 .calendar-detail-head {
@@ -1040,6 +1136,27 @@ body {
   padding: 14px;
   display: grid;
   gap: 11px;
+  flex: 1 !important;
+  overflow-y: auto !important;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(15, 23, 42, 0.12) transparent;
+}
+
+.calendar-detail-list::-webkit-scrollbar {
+  width: 5px;
+}
+
+.calendar-detail-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.calendar-detail-list::-webkit-scrollbar-thumb {
+  background: rgba(15, 23, 42, 0.12);
+  border-radius: 10px;
+}
+
+.calendar-detail-list::-webkit-scrollbar-thumb:hover {
+  background: rgba(15, 23, 42, 0.22);
 }
 
 .calendar-record-card {
@@ -1174,6 +1291,16 @@ body {
   }
   .calendar-week-header, .calendar-days-grid {
     min-width: 610px;
+  }
+  .calendar-detail-card-wrapper {
+    position: static !important;
+    width: 100% !important;
+    height: auto !important;
+  }
+  .calendar-detail-panel {
+    position: static !important;
+    width: 100% !important;
+    height: auto !important;
   }
   .calendar-detail-list {
     grid-template-columns: repeat(2, 1fr);

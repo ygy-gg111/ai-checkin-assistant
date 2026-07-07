@@ -4,10 +4,10 @@ import {
   PlusOutlined,
   UploadOutlined
 } from '@ant-design/icons';
-import {App, Button, Card, Col, Image, Input, Row, Space, Typography} from 'antd';
+import {App, Button, Card, Col, Image, Input, Row, Select, Space, Typography} from 'antd';
 import type {UploadFile} from 'antd';
 import {useTranslations} from 'next-intl';
-import {useRef, useState} from 'react';
+import {useEffect, useMemo, useRef, useState} from 'react';
 
 import {useAuth} from '@/hooks/use-auth';
 
@@ -33,6 +33,15 @@ interface UploadedImage {
   size: number;
   mimeType: string;
   filename: string;
+}
+
+interface PromptTemplate {
+  id: string;
+  name: string;
+  scene: Topic;
+  version: string;
+  content: string;
+  isActive: boolean;
 }
 
 const TOPICS: {key: Topic; labelKey: TopicLabelKey; color: string}[] = [
@@ -61,6 +70,9 @@ export function CreateCheckin() {
   const [topic, setTopic] = useState<Topic>('swimming');
   const [style, setStyle] = useState<Style>('natural');
   const [dayCount, setDayCount] = useState('12');
+  const [promptTemplates, setPromptTemplates] = useState<PromptTemplate[]>([]);
+  const [selectedPromptTemplateId, setSelectedPromptTemplateId] = useState<string | undefined>();
+  const [isLoadingPrompts, setIsLoadingPrompts] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [result, setResult] = useState<GeneratedResult | null>(null);
@@ -70,6 +82,62 @@ export function CreateCheckin() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const descLength = description.length;
+  const currentPromptTemplates = useMemo(
+    () => promptTemplates.filter((template) => template.scene === topic),
+    [promptTemplates, topic]
+  );
+  const selectedPromptTemplate = currentPromptTemplates.find((template) => template.id === selectedPromptTemplateId)
+    ?? currentPromptTemplates[0];
+  const effectivePromptTemplateId = selectedPromptTemplate?.id;
+
+  useEffect(() => {
+    if (status === 'loading' || !isAuthenticated) {
+      return;
+    }
+
+    let ignore = false;
+    const loadPromptTemplates = async () => {
+      setIsLoadingPrompts(true);
+      try {
+        const response = await fetch('/api/prompts');
+        const payload = await response.json() as {
+          message?: string;
+          data?: PromptTemplate[];
+        };
+
+        if (!response.ok || !Array.isArray(payload.data)) {
+          throw new Error(payload.message || 'Failed to load prompt templates');
+        }
+
+        if (!ignore) {
+          setPromptTemplates(payload.data);
+        }
+      } catch (error) {
+        if (!ignore) {
+          message.warning(error instanceof Error ? error.message : 'Prompt templates unavailable');
+        }
+      } finally {
+        if (!ignore) {
+          setIsLoadingPrompts(false);
+        }
+      }
+    };
+
+    void loadPromptTemplates();
+
+    return () => {
+      ignore = true;
+    };
+  }, [isAuthenticated, message, status]);
+
+  const normalizeDayCount = (value: string) => {
+    const parsed = Number.parseInt(value, 10);
+    if (!Number.isFinite(parsed) || parsed < 1) {
+      return '1';
+    }
+
+    return String(parsed);
+  };
 
   // Simulate generating
   const handleGenerate = async () => {
@@ -96,10 +164,11 @@ export function CreateCheckin() {
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({
           topic,
-          dayCount: parseInt(dayCount, 10),
+          dayCount: Number.parseInt(dayCount, 10) || 1,
           style,
           inputText: description,
           images: uploadedImages,
+          promptTemplateId: effectivePromptTemplateId,
         }),
       });
       const payload = await response.json() as {
@@ -130,6 +199,7 @@ export function CreateCheckin() {
     setTopic('swimming');
     setStyle('natural');
     setDayCount('12');
+    setSelectedPromptTemplateId(undefined);
     setResult(null);
     setAiState('ready');
     setActivePreviewUrl(null);
@@ -258,10 +328,10 @@ export function CreateCheckin() {
                 <div className="create-upload-icon">
                   <UploadOutlined style={{fontSize: 22}} />
                 </div>
-                <h3 style={{fontSize: 14, margin: '10px 0 2px'}}>
+                <h3 style={{fontSize: 13, margin: '7px 0 1px'}}>
                   {isUploading ? '正在上传图片...' : t('dropHint')}
                 </h3>
-                <p style={{margin: 0, color: '#6b7280', fontSize: 12}}>{t('dropFormats')}</p>
+                <p style={{margin: 0, color: '#6b7280', fontSize: 11}}>{t('dropFormats')}</p>
 
                 {fileList.length > 0 && (
                   <div className="create-thumbs" onClick={(e) => e.stopPropagation()}>
@@ -309,7 +379,7 @@ export function CreateCheckin() {
                 value={description}
                 onChange={(e) => setDescription(e.target.value.slice(0, 500))}
                 placeholder={t('descPlaceholder')}
-                rows={4}
+                rows={3}
                 style={{resize: 'none', borderRadius: 12, fontSize: 14}}
               />
             </div>
@@ -338,11 +408,15 @@ export function CreateCheckin() {
                   <label className="create-field-label"><span>{t('dayLabel')}</span></label>
                   <Input
                     className="create-input"
-                    value={`Day ${dayCount}`}
+                    addonBefore="Day"
+                    value={dayCount}
                     onChange={(e) => {
                       const num = e.target.value.replace(/\D/g, '');
-                      setDayCount(num || '1');
+                      setDayCount(num);
                     }}
+                    onBlur={() => setDayCount((current) => normalizeDayCount(current))}
+                    inputMode="numeric"
+                    placeholder="1"
                     style={{borderRadius: 12}}
                   />
                 </div>
@@ -363,6 +437,38 @@ export function CreateCheckin() {
                   </button>
                 ))}
               </div>
+            </div>
+
+            <div className="create-field">
+              <label className="create-field-label">
+                <span>Prompt 模板</span>
+                <small style={{color: '#9ca3af', fontWeight: 400}}>
+                  {effectivePromptTemplateId ? '生成时生效' : '使用系统默认'}
+                </small>
+              </label>
+              <Select
+                className="create-prompt-select"
+                value={effectivePromptTemplateId}
+                loading={isLoadingPrompts}
+                placeholder={isLoadingPrompts ? '正在加载 Prompt 模板' : '选择当前主题的 Prompt 模板'}
+                onChange={setSelectedPromptTemplateId}
+                options={currentPromptTemplates.map((template) => ({
+                  value: template.id,
+                  label: `${template.name} · v${template.version}`,
+                }))}
+                notFoundContent={isLoadingPrompts ? '加载中...' : '当前主题暂无可用模板'}
+              />
+              {selectedPromptTemplate ? (
+                <div className="create-prompt-preview">
+                  <div className="create-prompt-preview-title">
+                    <span>当前模板预览</span>
+                    <span>{selectedPromptTemplate.scene}</span>
+                  </div>
+                  <p>{selectedPromptTemplate.content}</p>
+                </div>
+              ) : (
+                <div className="create-prompt-hint">暂无模板，使用系统默认 Prompt</div>
+              )}
             </div>
           </div>
         </Card>

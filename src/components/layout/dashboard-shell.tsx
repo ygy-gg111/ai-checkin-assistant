@@ -27,7 +27,7 @@ import {
 } from 'antd';
 import type {MenuProps} from 'antd';
 import {useLocale, useTranslations} from 'next-intl';
-import {useState} from 'react';
+import {useEffect, useState} from 'react';
 
 import {AuthModal} from '@/components/auth/auth-modal';
 import {appTheme} from '@/config/theme';
@@ -47,8 +47,52 @@ export function DashboardShell({children}: {children: React.ReactNode}) {
   const pathname = usePathname();
   const screens = Grid.useBreakpoint();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [sidebarSummary, setSidebarSummary] = useState({
+    currentStreak: 0,
+    progressPercent: 0,
+  });
 
   const {user, isAuthenticated, status, openAuthModal, logout} = useAuth();
+
+  useEffect(() => {
+    if (status === 'loading' || !isAuthenticated) {
+      return;
+    }
+
+    const controller = new AbortController();
+
+    async function loadSidebarSummary() {
+      try {
+        const response = await fetch('/api/user/sidebar-summary', {
+          signal: controller.signal,
+        });
+        if (!response.ok) {
+          throw new Error(`Failed to load sidebar summary: ${response.status}`);
+        }
+
+        const payload = await response.json() as {
+          data: {
+            currentStreak: number;
+            progressPercent: number;
+          };
+        };
+        setSidebarSummary(payload.data);
+      } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') {
+          return;
+        }
+        setSidebarSummary({currentStreak: 0, progressPercent: 0});
+      }
+    }
+
+    void loadSidebarSummary();
+
+    return () => controller.abort();
+  }, [isAuthenticated, status]);
+
+  const visibleSidebarSummary = isAuthenticated
+    ? sidebarSummary
+    : {currentStreak: 0, progressPercent: 0};
 
   const navigationItems: MenuProps['items'] = [
     {key: '/', icon: <DashboardOutlined />, label: t('dashboard')},
@@ -115,9 +159,9 @@ export function DashboardShell({children}: {children: React.ReactNode}) {
             <div className="app-side-bottom">
               <div className="app-upgrade-card">
                 <b>{t('streakTitle')}</b>
-                <p>{t('streakDetail')}</p>
+                <p>{formatSidebarStreak(visibleSidebarSummary.currentStreak, locale)}</p>
                 <div className="dashboard-progress-bar">
-                  <span className="dashboard-progress-fill" style={{width: '80%'}} />
+                  <span className="dashboard-progress-fill" style={{width: `${visibleSidebarSummary.progressPercent}%`}} />
                 </div>
               </div>
             </div>
@@ -201,6 +245,14 @@ export function DashboardShell({children}: {children: React.ReactNode}) {
       </AntdApp>
     </ConfigProvider>
   );
+}
+
+function formatSidebarStreak(days: number, locale: string) {
+  if (locale === 'en') {
+    return days > 0 ? `You have recorded for ${days} days straight` : 'Start today with your first record';
+  }
+
+  return days > 0 ? `你已经连续记录 ${days} 天了` : '从今天开始记录第一天';
 }
 
 function Logo({compact = false}: {compact?: boolean}) {

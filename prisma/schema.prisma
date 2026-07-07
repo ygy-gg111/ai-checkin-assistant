@@ -8,14 +8,33 @@ datasource db {
 }
 
 model User {
-  id           String   @id @default(cuid())
-  email        String   @unique @db.VarChar(191)
-  passwordHash String   @db.VarChar(255)
-  name         String?  @db.VarChar(100)
-  avatar       String?  @db.VarChar(2048)
+  id           String       @id @default(cuid())
+  email        String       @unique @db.VarChar(191)
+  passwordHash String       @db.VarChar(255)
+  name         String?      @db.VarChar(100)
+  avatar       String?      @db.VarChar(2048)
   posts        Post[]
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  setting      UserSetting?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+}
+
+model UserSetting {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  persona       String   @db.Text
+  defaultTopic  String   @default("swimming") @db.VarChar(50)
+  defaultStyle  String   @default("natural") @db.VarChar(50)
+  aiProvider    String   @default("openai") @db.VarChar(50)
+  currentModel  String   @default("gpt-4o-mini") @db.VarChar(100)
+  outputLang    String   @default("zh-CN") @db.VarChar(20)
+  storageMethod String   @default("local") @db.VarChar(50)
+  storageRegion String   @default("ap-east") @db.VarChar(50)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([aiProvider, currentModel])
 }
 
 model Post {

@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import {
   CalendarOutlined,
@@ -43,6 +43,13 @@ interface CalendarApiDay {
   topics: string[];
 }
 
+interface CalendarStats {
+  monthlyCheckins: number;
+  monthlyGenerated: number;
+  currentStreak: number;
+  longestStreak: number;
+}
+
 export function CheckinCalendar() {
   const t = useTranslations('Calendar');
   const tDash = useTranslations('Dashboard');
@@ -56,6 +63,12 @@ export function CheckinCalendar() {
   const [currentYear, setCurrentYear] = useState<number>(initialDate.getFullYear());
   const [currentMonth, setCurrentMonth] = useState<number>(initialDate.getMonth() + 1);
   const [monthDays, setMonthDays] = useState<CalendarApiDay[]>([]);
+  const [stats, setStats] = useState<CalendarStats>({
+    monthlyCheckins: 0,
+    monthlyGenerated: 0,
+    currentStreak: 0,
+    longestStreak: 0,
+  });
   const [selectedRecords, setSelectedRecords] = useState<RecordItem[]>([]);
 
   useEffect(() => {
@@ -77,13 +90,25 @@ export function CheckinCalendar() {
         if (!response.ok) {
           throw new Error(`Failed to load calendar: ${response.status}`);
         }
-        const payload = await response.json() as {data: {days: CalendarApiDay[]}};
+        const payload = await response.json() as {
+          data: {
+            days: CalendarApiDay[];
+            stats: CalendarStats;
+          };
+        };
         setMonthDays(payload.data.days);
+        setStats(payload.data.stats);
       } catch (error) {
         if (error instanceof DOMException && error.name === 'AbortError') {
           return;
         }
         setMonthDays([]);
+        setStats({
+          monthlyCheckins: 0,
+          monthlyGenerated: 0,
+          currentStreak: 0,
+          longestStreak: 0,
+        });
       }
     }
 
@@ -153,12 +178,11 @@ export function CheckinCalendar() {
   }
 
   // Stats
-  const monthlyCheckins = monthDays.reduce((sum, day) => sum + day.count, 0);
-  const stats = [
-    {label: t('statMonthlyCheckins'), value: `${monthlyCheckins} ${tDash('timeUnit')}`, icon: <RiseOutlined />},
-    {label: t('statStreak'), value: `12 ${tDash('dayUnit')}`, icon: <FireOutlined style={{color: '#f59e0b'}} />},
-    {label: t('statLongestStreak'), value: `21 ${tDash('dayUnit')}`, icon: <StarOutlined style={{color: '#ea580c'}} />},
-    {label: t('statMonthlyGenerated'), value: `${monthlyCheckins} ${tDash('postUnit')}`, icon: <SyncOutlined style={{color: '#8b5cf6'}} />},
+  const statCards = [
+    {label: t('statMonthlyCheckins'), value: `${stats.monthlyCheckins} ${tDash('timeUnit')}`, icon: <RiseOutlined />},
+    {label: t('statStreak'), value: `${stats.currentStreak} ${tDash('dayUnit')}`, icon: <FireOutlined style={{color: '#f59e0b'}} />},
+    {label: t('statLongestStreak'), value: `${stats.longestStreak} ${tDash('dayUnit')}`, icon: <StarOutlined style={{color: '#ea580c'}} />},
+    {label: t('statMonthlyGenerated'), value: `${stats.monthlyGenerated} ${tDash('postUnit')}`, icon: <SyncOutlined style={{color: '#8b5cf6'}} />},
   ];
 
   const monthDayMap = new Map(monthDays.map((day) => [day.date, day]));
@@ -240,7 +264,7 @@ export function CheckinCalendar() {
     <div className="calendar-wrap">
       {/* Stats Row */}
       <section className="calendar-stats">
-        {stats.map((s, idx) => (
+        {statCards.map((s, idx) => (
           <div key={idx} className="calendar-stat">
             <span>{s.icon}</span>
             <small>{s.label}</small>
@@ -340,7 +364,8 @@ export function CheckinCalendar() {
 
         {/* Right Side: Day Details Panel */}
         <aside style={{display: 'flex', flexDirection: 'column', gap: 18}}>
-          <Card className="calendar-card calendar-detail-panel" styles={{body: {padding: 0}}}>
+          <div className="calendar-detail-card-wrapper">
+            <Card className="calendar-card calendar-detail-panel" styles={{body: {padding: 0}}}>
             {/* Detail Head */}
             <div className="calendar-detail-head">
               <small>{t('selectedDate')}</small>
@@ -387,12 +412,13 @@ export function CheckinCalendar() {
               {t('addCheckinForDay')}
             </Button>
           </Card>
+          </div>
 
           {/* Flame streak stats */}
           <div className="calendar-streak-banner">
             <span className="calendar-flame-icon">🔥</span>
             <div>
-              <b>{t('streakTitle', {days: 12})}</b>
+              <b>{t('streakTitle', {days: stats.currentStreak})}</b>
               <span>{t('streakHelp')}</span>
             </div>
           </div>

@@ -3,6 +3,7 @@ import {NextRequest} from 'next/server';
 import {ApiError} from '@/lib/api-handler';
 import {withAuth} from '@/lib/auth/guard';
 import {apiSuccess} from '@/lib/api-response';
+import {calculateStreakStats, toDateKey} from '@/lib/calendar/stats';
 import {prisma} from '@/lib/db';
 
 export const GET = withAuth(async (req: NextRequest, _context, session) => {
@@ -18,22 +19,35 @@ export const GET = withAuth(async (req: NextRequest, _context, session) => {
 
     const startDate = new Date(year, month - 1, 1);
     const endDate = new Date(year, month, 1);
-    const posts = await prisma.post.findMany({
-      where: {
-        userId: session.user.id,
-        status: {not: 'DELETED'},
-        checkinDate: {
-          gte: startDate,
-          lt: endDate,
+    const where = {
+      userId: session.user.id,
+      status: {not: 'DELETED' as const},
+      ...(topic && topic !== 'all' ? {topic} : {}),
+    };
+
+    const [posts, streakPosts] = await Promise.all([
+      prisma.post.findMany({
+        where: {
+          ...where,
+          checkinDate: {
+            gte: startDate,
+            lt: endDate,
+          },
         },
-        ...(topic && topic !== 'all' ? {topic} : {}),
-      },
-      select: {
-        topic: true,
-        checkinDate: true,
-      },
-      orderBy: {checkinDate: 'asc'},
-    });
+        select: {
+          topic: true,
+          checkinDate: true,
+        },
+        orderBy: {checkinDate: 'asc'},
+      }),
+      prisma.post.findMany({
+        where,
+        select: {
+          checkinDate: true,
+        },
+        orderBy: {checkinDate: 'asc'},
+      }),
+    ]);
 
     const grouped = posts.reduce<Record<string, {count: number; topics: Set<string>}>>((acc, post) => {
       const dateStr = toDateKey(post.checkinDate);
@@ -57,16 +71,19 @@ export const GET = withAuth(async (req: NextRequest, _context, session) => {
       });
     }
 
+    const {currentStreak, longestStreak} = calculateStreakStats(
+      streakPosts.map((post) => toDateKey(post.checkinDate))
+    );
+
     return apiSuccess({
       year,
       month,
       days,
+      stats: {
+        monthlyCheckins: days.filter((day) => day.checked).length,
+        monthlyGenerated: posts.length,
+        currentStreak,
+        longestStreak,
+      },
     });
 });
-
-function toDateKey(date: Date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}

@@ -38,15 +38,21 @@ export const POST = withAuth(async (req: NextRequest, _context, session) => {
       throw new ApiError('VALIDATION_ERROR', '请传参至少一张打卡图片地址(images)');
     }
 
+    const normalizedTopic = topic.trim();
+    const normalizedPromptTemplateId = typeof promptTemplateId === 'string' ? promptTemplateId.trim() : '';
+
     const template = await prisma.promptTemplate.findFirst({
       where: {
         isActive: true,
-        ...(typeof promptTemplateId === 'string' && promptTemplateId
-          ? {id: promptTemplateId}
-          : {scene: topic}),
+        scene: normalizedTopic,
+        ...(normalizedPromptTemplateId ? {id: normalizedPromptTemplateId} : {}),
       },
       orderBy: {version: 'desc'},
     });
+
+    if (normalizedPromptTemplateId && !template) {
+      throw new ApiError('VALIDATION_ERROR', '所选 Prompt 模板不存在、未启用，或与当前打卡主题不匹配');
+    }
 
     let providerName = 'openai';
     let model = process.env.OPENAI_MODEL || 'gpt-4o-mini';
@@ -58,7 +64,7 @@ export const POST = withAuth(async (req: NextRequest, _context, session) => {
       model = provider.model;
 
       const generated = await provider.generatePost({
-        topic: topic.trim(),
+        topic: normalizedTopic,
         inputText: inputText.trim(),
         imageUrls: normalizedImages.map((image) => image.url),
         style: typeof style === 'string' ? style : 'normal',
@@ -70,7 +76,7 @@ export const POST = withAuth(async (req: NextRequest, _context, session) => {
         data: {
           userId: session.user.id,
           promptTemplateId: template?.id,
-          topic: topic.trim(),
+          topic: normalizedTopic,
           dayCount: parseDayCount(dayCount),
           style: typeof style === 'string' ? style : 'normal',
           inputText: inputText.trim(),

@@ -2,12 +2,13 @@
 
 import {
   CopyOutlined,
+  DeleteOutlined,
   EllipsisOutlined,
   EyeOutlined,
   FileTextOutlined,
   SearchOutlined
 } from '@ant-design/icons';
-import {App, Button, Card, Select} from 'antd';
+import {App, Button, Card, Dropdown, Image, Modal, Popconfirm, Select, Tag} from 'antd';
 import {useLocale, useTranslations} from 'next-intl';
 import {useEffect, useState} from 'react';
 
@@ -25,11 +26,27 @@ interface HistoryItem {
   date: string;
   time: string;
   title: string;
+  dayCount?: number | null;
   preview?: string;
   contentPreview?: string;
   content?: string;
   tags: string[];
   coverImage?: string | null;
+}
+
+interface HistoryDetail extends HistoryItem {
+  style: string;
+  inputText: string;
+  content: string;
+  coverText: string | null;
+  provider: string;
+  model: string;
+  checkinDate: string;
+  createdAt: string;
+  images: {
+    id: string;
+    url: string;
+  }[];
 }
 
 type HistoryApiData = {
@@ -40,6 +57,18 @@ type HistoryApiData = {
     total: number;
   };
 };
+
+interface HistoryStats {
+  total: number;
+  monthly: number;
+  avgWords: number;
+  copyRate: number | null;
+  topicDistribution: {
+    topic: string;
+    count: number;
+    percent: number;
+  }[];
+}
 
 export function HistoryRecords() {
   const t = useTranslations('History');
@@ -56,6 +85,17 @@ export function HistoryRecords() {
   const [records, setRecords] = useState<HistoryItem[]>([]);
   const [total, setTotal] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
+  const [stats, setStats] = useState<HistoryStats>({
+    total: 0,
+    monthly: 0,
+    avgWords: 0,
+    copyRate: null,
+    topicDistribution: [],
+  });
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [selectedDetail, setSelectedDetail] = useState<HistoryDetail | null>(null);
+  const topTopic = [...stats.topicDistribution].sort((a, b) => b.count - a.count)[0];
 
   useEffect(() => {
     if (status === 'loading' || !isAuthenticated) {
@@ -108,6 +148,43 @@ export function HistoryRecords() {
     return () => controller.abort();
   }, [currentPage, isAuthenticated, isEn, message, searchQuery, status, styleFilter, topicFilter]);
 
+  useEffect(() => {
+    if (status === 'loading' || !isAuthenticated) {
+      return;
+    }
+
+    const controller = new AbortController();
+
+    async function loadStats() {
+      try {
+        const response = await fetch('/api/history/stats', {
+          signal: controller.signal,
+        });
+        if (!response.ok) {
+          throw new Error(`Failed to load history stats: ${response.status}`);
+        }
+
+        const payload = await response.json() as {data: HistoryStats};
+        setStats(payload.data);
+      } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') {
+          return;
+        }
+        setStats({
+          total: 0,
+          monthly: 0,
+          avgWords: 0,
+          copyRate: null,
+          topicDistribution: [],
+        });
+      }
+    }
+
+    void loadStats();
+
+    return () => controller.abort();
+  }, [isAuthenticated, status]);
+
   if (status !== 'loading' && !isAuthenticated) {
     return (
       <GuestEmptyState
@@ -146,8 +223,56 @@ export function HistoryRecords() {
     }
   };
 
-  const handleActionClick = (actionName: string, id: string) => {
-    message.info(`${actionName}: ${id}`);
+  const loadDetail = async (id: string, shouldOpen = true) => {
+    setDetailLoading(true);
+    try {
+      const response = await fetch(`/api/posts/${id}`);
+      if (!response.ok) {
+        throw new Error(`Failed to load detail: ${response.status}`);
+      }
+
+      const payload = await response.json() as {data: HistoryDetail};
+      setSelectedDetail(payload.data);
+      if (shouldOpen) {
+        setDetailOpen(true);
+      }
+      return payload.data;
+    } catch {
+      message.error(isEn ? 'Failed to load detail' : '详情加载失败');
+      return null;
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
+  const handleCopyRecord = async (record: HistoryItem) => {
+    const detail = await loadDetail(record.id, false);
+    await handleCopy(detail?.content ?? record.content ?? record.contentPreview ?? record.preview ?? record.title);
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      const response = await fetch(`/api/posts/${id}`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to delete record: ${response.status}`);
+      }
+
+      message.success(isEn ? 'Deleted' : '已删除');
+      setRecords((items) => items.filter((item) => item.id !== id));
+      setTotal((value) => Math.max(0, value - 1));
+      setStats((value) => ({
+        ...value,
+        total: Math.max(0, value.total - 1),
+      }));
+      if (selectedDetail?.id === id) {
+        setDetailOpen(false);
+        setSelectedDetail(null);
+      }
+    } catch {
+      message.error(isEn ? 'Delete failed' : '删除失败');
+    }
   };
 
   // Cover gradient backgrounds per index
@@ -256,21 +381,40 @@ export function HistoryRecords() {
                 <Button
                   className="history-mini-btn"
                   icon={<EyeOutlined />}
-                  onClick={() => handleActionClick(t('viewDetail'), rec.id)}
+                  loading={detailLoading && selectedDetail?.id === rec.id}
+                  onClick={() => void loadDetail(rec.id, true)}
                   title={t('viewDetail')}
                 />
                 <Button
                   className="history-mini-btn"
                   icon={<CopyOutlined />}
-                  onClick={() => handleCopy(rec.content ?? rec.contentPreview ?? rec.preview ?? rec.title)}
+                  onClick={() => void handleCopyRecord(rec)}
                   title={t('copy')}
                 />
-                <Button
-                  className="history-mini-btn"
-                  icon={<EllipsisOutlined />}
-                  onClick={() => handleActionClick(t('more'), rec.id)}
-                  title={t('more')}
-                />
+                <Dropdown
+                  trigger={['click']}
+                  menu={{
+                    items: [
+                      {
+                        key: 'delete',
+                        danger: true,
+                        icon: <DeleteOutlined />,
+                        label: (
+                          <Popconfirm
+                            title={isEn ? 'Delete this record?' : '删除这条记录？'}
+                            okText={isEn ? 'Delete' : '删除'}
+                            cancelText={isEn ? 'Cancel' : '取消'}
+                            onConfirm={() => void handleDelete(rec.id)}
+                          >
+                            <span>{isEn ? 'Delete' : '删除'}</span>
+                          </Popconfirm>
+                        ),
+                      },
+                    ],
+                  }}
+                >
+                  <Button className="history-mini-btn" icon={<EllipsisOutlined />} title={t('more')} />
+                </Dropdown>
               </div>
             </article>
           ))
@@ -315,19 +459,19 @@ export function HistoryRecords() {
           <div className="history-metrics-grid">
             <div className="history-metric-item">
               <small>{t('statTotal')}</small>
-              <strong>{total}</strong>
+              <strong>{stats.total}</strong>
             </div>
             <div className="history-metric-item">
               <small>{t('statMonthly')}</small>
-              <strong>{records.length}</strong>
+              <strong>{stats.monthly}</strong>
             </div>
             <div className="history-metric-item">
               <small>{t('statAvgWords')}</small>
-              <strong>142</strong>
+              <strong>{stats.avgWords}</strong>
             </div>
             <div className="history-metric-item">
               <small>{t('statCopyRate')}</small>
-              <strong>86%</strong>
+              <strong>{stats.copyRate === null ? '-' : `${stats.copyRate}%`}</strong>
             </div>
           </div>
         </Card>
@@ -338,58 +482,124 @@ export function HistoryRecords() {
             <h2>{t('topicDistribution')}</h2>
           </div>
           <div className="history-distribution-panel">
-            {/* Swim */}
-            <div className="history-dist-row">
-              <div className="history-dist-top">
-                <span>{isEn ? 'Swim' : '游泳'}</span>
-                <b>42%</b>
+            {stats.topicDistribution.map((item) => (
+              <div key={item.topic} className="history-dist-row">
+                <div className="history-dist-top">
+                  <span>{getLocalizedTopic(item.topic)}</span>
+                  <b>{item.percent}%</b>
+                </div>
+                <div className="bar">
+                  <span style={{width: `${item.percent}%`, background: getTopicColor(item.topic)}} />
+                </div>
               </div>
-              <div className="bar">
-                <span style={{width: '42%', background: '#2563eb'}} />
-              </div>
-            </div>
-
-            {/* Study */}
-            <div className="history-dist-row">
-              <div className="history-dist-top">
-                <span>{isEn ? 'Study' : '学习'}</span>
-                <b>28%</b>
-              </div>
-              <div className="bar">
-                <span style={{width: '28%', background: '#ea580c'}} />
-              </div>
-            </div>
-
-            {/* Run */}
-            <div className="history-dist-row">
-              <div className="history-dist-top">
-                <span>{isEn ? 'Run' : '跑步'}</span>
-                <b>18%</b>
-              </div>
-              <div className="bar">
-                <span style={{width: '18%', background: '#059669'}} />
-              </div>
-            </div>
-
-            {/* Daily */}
-            <div className="history-dist-row">
-              <div className="history-dist-top">
-                <span>{isEn ? 'Daily' : '日常'}</span>
-                <b>12%</b>
-              </div>
-              <div className="bar">
-                <span style={{width: '12%', background: '#7c3aed'}} />
-              </div>
-            </div>
+            ))}
           </div>
         </Card>
 
         {/* Insights Card */}
         <div className="history-insight-box">
           <b>✦ {t('monthlySummary')}</b>
-          {t('monthlySummaryText')}
+          {formatMonthlySummary(stats, topTopic?.topic, getLocalizedTopic, isEn)}
         </div>
       </aside>
+
+      <Modal
+        title={selectedDetail?.title ?? t('viewDetail')}
+        open={detailOpen}
+        onCancel={() => setDetailOpen(false)}
+        footer={[
+          <Button key="copy" type="primary" onClick={() => selectedDetail && void handleCopy(selectedDetail.content)}>
+            {t('copy')}
+          </Button>,
+          <Button key="close" onClick={() => setDetailOpen(false)}>
+            {isEn ? 'Close' : '关闭'}
+          </Button>,
+        ]}
+        width={760}
+      >
+        {selectedDetail ? (
+          <div style={{display: 'flex', flexDirection: 'column', gap: 14}}>
+            {selectedDetail.images.length > 0 ? (
+              <Image.PreviewGroup>
+                <div style={{display: 'grid', gridTemplateColumns: 'repeat(3, 88px)', gap: 8}}>
+                  {selectedDetail.images.map((image) => (
+                    <Image
+                      key={image.id}
+                      src={image.url}
+                      alt={selectedDetail.title}
+                      width={88}
+                      height={88}
+                      style={{objectFit: 'cover', borderRadius: 8}}
+                    />
+                  ))}
+                </div>
+              </Image.PreviewGroup>
+            ) : null}
+            <div style={{display: 'flex', gap: 8, flexWrap: 'wrap'}}>
+              <Tag color="blue">{getLocalizedTopic(selectedDetail.topicType ?? selectedDetail.topic)}</Tag>
+              <Tag>{t('tableHeadDate')} {formatDetailDate(selectedDetail, isEn)}</Tag>
+              {selectedDetail.dayCount ? <Tag>{isEn ? 'Day' : '第'} {selectedDetail.dayCount}</Tag> : null}
+              <Tag>{selectedDetail.model}</Tag>
+            </div>
+            <div style={{whiteSpace: 'pre-wrap', lineHeight: 1.8, color: '#334155'}}>
+              {selectedDetail.content}
+            </div>
+            {selectedDetail.tags.length > 0 ? (
+              <div style={{display: 'flex', gap: 6, flexWrap: 'wrap'}}>
+                {selectedDetail.tags.map((tag) => <Tag key={tag}>#{tag}</Tag>)}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+      </Modal>
     </div>
   );
+}
+
+function getTopicColor(topic: string) {
+  switch (topic) {
+    case 'swimming':
+      return '#2563eb';
+    case 'study':
+      return '#ea580c';
+    case 'running':
+      return '#059669';
+    case 'daily':
+      return '#7c3aed';
+    default:
+      return '#64748b';
+  }
+}
+
+function formatDetailDate(detail: HistoryDetail, isEn: boolean) {
+  const date = new Date(detail.checkinDate);
+  if (Number.isNaN(date.getTime())) {
+    return detail.date;
+  }
+
+  if (isEn) {
+    return date.toLocaleDateString('en-US', {month: 'short', day: 'numeric', year: 'numeric'});
+  }
+
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+function formatMonthlySummary(
+  stats: HistoryStats,
+  topTopic: string | undefined,
+  getLocalizedTopic: (type: string) => string,
+  isEn: boolean
+) {
+  if (stats.total === 0) {
+    return isEn
+      ? 'No history yet. Create the first check-in to build your content archive.'
+      : '还没有历史记录，先创建一次打卡，就能开始沉淀内容库。';
+  }
+
+  const topicText = topTopic ? getLocalizedTopic(topTopic) : (isEn ? 'Daily' : '日常');
+  if (isEn) {
+    return `You have ${stats.total} records so far, ${stats.monthly} added this month. ${topicText} is your most frequent topic.`;
+  }
+
+  return `你目前累计 ${stats.total} 条记录，本月新增 ${stats.monthly} 条，最常记录的是「${topicText}」。`;
 }

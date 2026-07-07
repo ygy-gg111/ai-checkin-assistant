@@ -3,7 +3,7 @@
 import {SettingOutlined, UserOutlined} from '@ant-design/icons';
 import {App, Avatar, Button, Input, Select, Typography} from 'antd';
 import {useLocale, useTranslations} from 'next-intl';
-import {useRef, useState} from 'react';
+import {useCallback, useEffect, useRef, useState} from 'react';
 
 import {GuestEmptyState} from '@/components/auth/guest-empty-state';
 import {useAuth} from '@/hooks/use-auth';
@@ -14,6 +14,30 @@ const {TextArea} = Input;
 type UploadedImage = {
   url: string;
 };
+
+interface ProfileSetting {
+  persona: string;
+  defaultTopic: string;
+  defaultStyle: string;
+  aiProvider: string;
+  currentModel: string;
+  outputLang: string;
+  storageMethod: string;
+  storageRegion: string;
+}
+
+interface ProfileStats {
+  monthLabel: string;
+  monthlyCalls: number;
+  callLimit: number;
+  callPercent: number;
+  totalTokens: number;
+  tokenPercent: number;
+  postsGenerated: number;
+  postGoal: number;
+  postPercent: number;
+  estimatedCostCny: number;
+}
 
 export function UserSettings() {
   const t = useTranslations('Profile');
@@ -39,8 +63,75 @@ export function UserSettings() {
   const [outputLang, setOutputLang] = useState(isEn ? 'en' : 'zh-CN');
   const [storageMethod, setStorageMethod] = useState('local');
   const [storageRegion, setStorageRegion] = useState('ap-east');
+  const [settingSnapshot, setSettingSnapshot] = useState<ProfileSetting | null>(null);
+  const [stats, setStats] = useState<ProfileStats>({
+    monthLabel: formatCurrentMonthLabel(),
+    monthlyCalls: 0,
+    callLimit: 100,
+    callPercent: 0,
+    totalTokens: 0,
+    tokenPercent: 0,
+    postsGenerated: 0,
+    postGoal: 50,
+    postPercent: 0,
+    estimatedCostCny: 0,
+  });
+  const [isLoadingSettings, setIsLoadingSettings] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+
+  const applySetting = useCallback((setting: ProfileSetting) => {
+    setPersona(setting.persona);
+    setDefaultTopic(setting.defaultTopic);
+    setDefaultStyle(setting.defaultStyle);
+    setCurrentModel(setting.currentModel);
+    setOutputLang(setting.outputLang);
+    setStorageMethod(setting.storageMethod);
+    setStorageRegion(setting.storageRegion);
+  }, []);
+
+  useEffect(() => {
+    if (status === 'loading' || !isAuthenticated) {
+      return;
+    }
+
+    const controller = new AbortController();
+
+    async function loadSettings() {
+      setIsLoadingSettings(true);
+      try {
+        const response = await fetch('/api/user/settings', {
+          signal: controller.signal,
+        });
+        if (!response.ok) {
+          throw new Error(`Failed to load settings: ${response.status}`);
+        }
+
+        const payload = await response.json() as {
+          data: {
+            setting: ProfileSetting;
+            stats: ProfileStats;
+          };
+        };
+        applySetting(payload.data.setting);
+        setSettingSnapshot(payload.data.setting);
+        setStats(payload.data.stats);
+      } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') {
+          return;
+        }
+        message.error(isEn ? 'Failed to load settings' : '用户设置加载失败');
+      } finally {
+        if (!controller.signal.aborted) {
+          setIsLoadingSettings(false);
+        }
+      }
+    }
+
+    void loadSettings();
+
+    return () => controller.abort();
+  }, [applySetting, isAuthenticated, isEn, message, status]);
 
   if (status !== 'loading' && !isAuthenticated) {
     return (
@@ -65,15 +156,31 @@ export function UserSettings() {
 
     setIsSaving(true);
     try {
-      const response = await fetch('/api/user/profile', {
-        method: 'PUT',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-          name: nickname.trim(),
-          avatar: avatar || '',
+      const [profileResponse, settingsResponse] = await Promise.all([
+        fetch('/api/user/profile', {
+          method: 'PUT',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            name: nickname.trim(),
+            avatar: avatar || '',
+          }),
         }),
-      });
-      const payload = await response.json() as {
+        fetch('/api/user/settings', {
+          method: 'PUT',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            persona,
+            defaultTopic,
+            defaultStyle,
+            currentModel,
+            outputLang,
+            storageMethod,
+            storageRegion,
+          }),
+        }),
+      ]);
+
+      const profilePayload = await profileResponse.json() as {
         message?: string;
         data?: {
           id: string;
@@ -83,14 +190,23 @@ export function UserSettings() {
           createdAt: string;
         };
       };
+      const settingsPayload = await settingsResponse.json() as {
+        message?: string;
+        data?: ProfileSetting;
+      };
 
-      if (!response.ok || !payload.data) {
-        throw new Error(payload.message || (isEn ? 'Failed to save profile' : '保存资料失败'));
+      if (!profileResponse.ok || !profilePayload.data) {
+        throw new Error(profilePayload.message || (isEn ? 'Failed to save profile' : '保存资料失败'));
+      }
+      if (!settingsResponse.ok || !settingsPayload.data) {
+        throw new Error(settingsPayload.message || (isEn ? 'Failed to save settings' : '保存设置失败'));
       }
 
-      updateUser(payload.data);
-      setNicknameDraft(payload.data.name || payload.data.email.split('@')[0]);
-      setAvatarDraft(payload.data.avatar);
+      updateUser(profilePayload.data);
+      setNicknameDraft(profilePayload.data.name || profilePayload.data.email.split('@')[0]);
+      setAvatarDraft(profilePayload.data.avatar);
+      setSettingSnapshot(settingsPayload.data);
+      applySetting(settingsPayload.data);
       message.success(isEn ? 'Profile updated successfully!' : '资料保存成功！');
     } catch (error) {
       message.error(error instanceof Error ? error.message : (isEn ? 'Failed to save profile' : '保存资料失败'));
@@ -106,6 +222,9 @@ export function UserSettings() {
 
     setNicknameDraft(null);
     setAvatarDraft(null);
+    if (settingSnapshot) {
+      applySetting(settingSnapshot);
+    }
     message.info(isEn ? 'Changes discarded' : '已取消修改');
   };
 
@@ -370,46 +489,46 @@ export function UserSettings() {
           <div className="profile-card">
             <div className="profile-card-head">
               <h2>{t('statsTitle')}</h2>
-              <span style={{color: '#94a3b8', fontSize: 11, fontWeight: 700}}>2026.07</span>
+              <span style={{color: '#94a3b8', fontSize: 11, fontWeight: 700}}>{stats.monthLabel}</span>
             </div>
             <div className="profile-metrics-list">
               <div className="profile-metric-card">
                 <div className="profile-metric-top">
                   <span>{t('aiCalls')}</span>
-                  <b>68%</b>
+                  <b>{stats.callPercent}%</b>
                 </div>
-                <strong>68 / 100</strong>
+                <strong>{stats.monthlyCalls} / {stats.callLimit}</strong>
                 <div className="profile-metric-bar">
-                  <span style={{width: '68%'}}></span>
+                  <span style={{width: `${stats.callPercent}%`}}></span>
                 </div>
               </div>
 
               <div className="profile-metric-card">
                 <div className="profile-metric-top">
                   <span>{t('tokenUsage')}</span>
-                  <b>42%</b>
+                  <b>{stats.tokenPercent}%</b>
                 </div>
-                <strong>42.6K</strong>
+                <strong>{formatTokenCount(stats.totalTokens)}</strong>
                 <div className="profile-metric-bar">
-                  <span style={{width: '42%', background: '#8b5cf6'}}></span>
+                  <span style={{width: `${stats.tokenPercent}%`, background: '#8b5cf6'}}></span>
                 </div>
               </div>
 
               <div className="profile-metric-card">
                 <div className="profile-metric-top">
                   <span>{t('postsGenerated')}</span>
-                  <b>72%</b>
+                  <b>{stats.postPercent}%</b>
                 </div>
-                <strong>{isEn ? '36 posts' : '36 篇'}</strong>
+                <strong>{isEn ? `${stats.postsGenerated} posts` : `${stats.postsGenerated} 篇`}</strong>
                 <div className="profile-metric-bar">
-                  <span style={{width: '72%', background: '#10b981'}}></span>
+                  <span style={{width: `${stats.postPercent}%`, background: '#10b981'}}></span>
                 </div>
               </div>
             </div>
 
             <div className="profile-cost-box">
               <small>{t('estCost')}</small>
-              <strong>¥ 3.18</strong>
+              <strong>¥ {stats.estimatedCostCny.toFixed(2)}</strong>
             </div>
           </div>
 
@@ -425,7 +544,7 @@ export function UserSettings() {
           <Button className="btn" onClick={handleCancel}>
             {t('cancel')}
           </Button>
-          <Button className="btn primary" loading={isSaving} onClick={() => void handleSave()}>
+          <Button className="btn primary" loading={isSaving} disabled={isLoadingSettings} onClick={() => void handleSave()}>
             {t('save')}
           </Button>
         </div>
@@ -449,4 +568,17 @@ function formatJoinTime(createdAt: string | undefined, isEn: boolean) {
   }
 
   return `${date.getFullYear()} 年 ${date.getMonth() + 1} 月`;
+}
+
+function formatTokenCount(value: number) {
+  if (value >= 1000) {
+    return `${(value / 1000).toFixed(1)}K`;
+  }
+
+  return String(value);
+}
+
+function formatCurrentMonthLabel() {
+  const now = new Date();
+  return `${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, '0')}`;
 }
