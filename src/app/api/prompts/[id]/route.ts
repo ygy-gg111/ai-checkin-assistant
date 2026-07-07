@@ -3,6 +3,7 @@ import {NextRequest} from 'next/server';
 import {ApiError} from '@/lib/api-handler';
 import {withAuth} from '@/lib/auth/guard';
 import {apiSuccess} from '@/lib/api-response';
+import {prisma} from '@/lib/db';
 
 export const PUT = withAuth(async (
   req: NextRequest,
@@ -23,12 +24,42 @@ export const PUT = withAuth(async (
       throw new ApiError('VALIDATION_ERROR', '未提交任何需要更新的字段');
     }
 
-    // TODO: 1. 检查模板是否存在 (Prisma PromptTemplate.findUnique)
-    // TODO: 2. 如果存在，更新内容并升级小版本号或更新 updatedAt (Prisma PromptTemplate.update)
-
-    // 框架阶段：模拟返回操作成功并附带当前更新时间
-    return apiSuccess({
-      id,
-      updatedAt: new Date().toISOString(),
+    const existing = await prisma.promptTemplate.findUnique({
+      where: {id},
+      select: {id: true},
     });
+
+    if (!existing) {
+      throw new ApiError('NOT_FOUND', 'Prompt 模板不存在');
+    }
+
+    const data: {
+      name?: string;
+      content?: string;
+      isActive?: boolean;
+    } = {};
+
+    if (typeof name === 'string') {
+      data.name = name.trim();
+    }
+    if (typeof content === 'string') {
+      data.content = content;
+    }
+    if (typeof isActive === 'boolean') {
+      data.isActive = isActive;
+    }
+
+    if (data.name === '') {
+      throw new ApiError('VALIDATION_ERROR', '模板名称不能为空');
+    }
+    if (data.content === '') {
+      throw new ApiError('VALIDATION_ERROR', '模板内容不能为空');
+    }
+
+    const updated = await prisma.promptTemplate.update({
+      where: {id},
+      data,
+    });
+
+    return apiSuccess(updated);
 });

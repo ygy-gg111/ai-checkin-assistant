@@ -3,8 +3,10 @@ import {NextRequest} from 'next/server';
 import {ApiError} from '@/lib/api-handler';
 import {withAuth} from '@/lib/auth/guard';
 import {apiSuccess} from '@/lib/api-response';
+import {prisma} from '@/lib/db';
+import {formatPostListItem} from '@/lib/posts/format';
 
-export const GET = withAuth(async (req: NextRequest) => {
+export const GET = withAuth(async (req: NextRequest, _context, session) => {
     const {searchParams} = new URL(req.url);
     const date = searchParams.get('date');
     const topic = searchParams.get('topic');
@@ -13,25 +15,29 @@ export const GET = withAuth(async (req: NextRequest) => {
       throw new ApiError('VALIDATION_ERROR', '请传入正确的日期格式参数 (YYYY-MM-DD)');
     }
 
-    // TODO: 1. 依据 date 构造该日期的 00:00:00 到 23:59:59 的时间查询范围
-    // TODO: 2. 查询数据库中符合指定日期范围及 topic 条件的 Post 列表 (Prisma Post.findMany)
-
-    // 框架阶段：返回模拟单日打卡列表数据
-    const mockList = [
-      {
-        id: `post_${date.replace(/-/g, '')}_01`,
-        topic: topic || 'swimming',
-        dayCount: 12,
-        title: '下班后的45分钟，继续和水较劲',
-        coverImage: '/uploads/mock/swim-01.jpg',
-        coverText: 'Day 12｜下班去游泳',
-        tags: ['#游泳打卡', '#普通程序员'],
-        createdAt: `${date}T20:30:00.000Z`,
+    const [year, month, day] = date.split('-').map(Number);
+    const startDate = new Date(year, month - 1, day);
+    const endDate = new Date(year, month - 1, day + 1);
+    const posts = await prisma.post.findMany({
+      where: {
+        userId: session.user.id,
+        status: {not: 'DELETED'},
+        checkinDate: {
+          gte: startDate,
+          lt: endDate,
+        },
+        ...(topic && topic !== 'all' ? {topic} : {}),
       },
-    ];
+      include: {
+        images: {
+          orderBy: {sortOrder: 'asc'},
+        },
+      },
+      orderBy: {checkinDate: 'desc'},
+    });
 
     return apiSuccess({
       date,
-      list: mockList,
+      list: posts.map(formatPostListItem),
     });
 });

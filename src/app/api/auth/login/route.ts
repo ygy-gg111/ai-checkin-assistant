@@ -3,6 +3,7 @@ import {NextRequest} from 'next/server';
 import {ApiError, withApiHandler} from '@/lib/api-handler';
 import {apiSuccess} from '@/lib/api-response';
 import {verifyPassword} from '@/lib/auth/password';
+import {assertLoginAllowed, clearLoginFailures, recordLoginFailure} from '@/lib/auth/rate-limit';
 import {AUTH_COOKIE_NAME, AUTH_COOKIE_OPTIONS, signJwt} from '@/lib/auth/session';
 import {prisma} from '@/lib/db';
 
@@ -23,6 +24,8 @@ export const POST = withApiHandler(async (req: NextRequest) => {
     throw new ApiError('BAD_REQUEST', '请输入邮箱和密码');
   }
 
+  assertLoginAllowed(req, normalizedEmail);
+
   const user = await prisma.user.findUnique({
     where: {email: normalizedEmail},
     select: {
@@ -36,13 +39,17 @@ export const POST = withApiHandler(async (req: NextRequest) => {
   });
 
   if (!user) {
+    recordLoginFailure(req, normalizedEmail);
     throw new ApiError('UNAUTHORIZED', '邮箱或密码错误');
   }
 
   const passwordValid = await verifyPassword(password, user.passwordHash);
   if (!passwordValid) {
+    recordLoginFailure(req, normalizedEmail);
     throw new ApiError('UNAUTHORIZED', '邮箱或密码错误');
   }
+
+  clearLoginFailures(req, normalizedEmail);
 
   const token = signJwt(user.id);
 

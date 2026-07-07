@@ -4,7 +4,7 @@ import {
   PlusOutlined,
   UploadOutlined
 } from '@ant-design/icons';
-import {App, Button, Card, Col, Input, Row, Space, Typography} from 'antd';
+import {App, Button, Card, Col, Image, Input, Row, Space, Typography} from 'antd';
 import type {UploadFile} from 'antd';
 import {useTranslations} from 'next-intl';
 import {useRef, useState} from 'react';
@@ -26,6 +26,15 @@ interface GeneratedResult {
   coverText: string;
 }
 
+interface UploadedImage {
+  url: string;
+  width: number | null;
+  height: number | null;
+  size: number;
+  mimeType: string;
+  filename: string;
+}
+
 const TOPICS: {key: Topic; labelKey: TopicLabelKey; color: string}[] = [
   {key: 'swimming', labelKey: 'topicSwimming', color: '#2563eb'},
   {key: 'running', labelKey: 'topicRunning', color: '#059669'},
@@ -40,36 +49,24 @@ const STYLES: {key: Style; labelKey: StyleLabelKey}[] = [
   {key: 'minimal', labelKey: 'styleMinimal'},
 ];
 
-// Fake thumbnail previews (no real file needed)
-const MOCK_IMAGES: UploadFile[] = [
-  {uid: 'mock-1', name: 'swim-01.jpg', status: 'done'},
-  {uid: 'mock-2', name: 'swim-02.jpg', status: 'done'},
-];
-
-// Mock result to display in preview
-const MOCK_RESULT: GeneratedResult = {
-  title: '下班后的 45 分钟，继续和水较劲',
-  content:
-    '今天是游泳打卡第 12 天。下班后还是去了泳池，主要练蛙泳腿。虽然还是不太走水，但比昨天轻松了一点。不励志，也不装自律，就当普通程序员给自己重启一下。',
-  tags: ['#游泳打卡', '#普通程序员', '#坚持100天', '#下班后生活', '#小红书日常'],
-  coverText: 'DAY 12 · 下班去游泳',
-};
-
 export function CreateCheckin() {
   const t = useTranslations('Create');
   const tAuth = useTranslations('Auth');
   const {message} = App.useApp();
   const {isAuthenticated, status, openAuthModal} = useAuth();
 
-  // Pre-filled with mock data so the UI is immediately visible
-  const [fileList, setFileList] = useState<UploadFile[]>(MOCK_IMAGES);
+  const [fileList, setFileList] = useState<UploadFile[]>([]);
+  const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>([]);
   const [description, setDescription] = useState('今天练蛙泳，腿还是不怎么走水，不过感觉比昨天轻松一点。');
   const [topic, setTopic] = useState<Topic>('swimming');
   const [style, setStyle] = useState<Style>('natural');
   const [dayCount, setDayCount] = useState('12');
+  const [isUploading, setIsUploading] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [result, setResult] = useState<GeneratedResult | null>(MOCK_RESULT);
-  const [aiState, setAiState] = useState<'idle' | 'ready' | 'generating' | 'done'>('done');
+  const [result, setResult] = useState<GeneratedResult | null>(null);
+  const [aiState, setAiState] = useState<'idle' | 'ready' | 'generating' | 'done'>('ready');
+  const [activePreviewUrl, setActivePreviewUrl] = useState<string | null>(null);
+  const [previewVisible, setPreviewVisible] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const descLength = description.length;
@@ -85,27 +82,58 @@ export function CreateCheckin() {
       message.warning(t('descRequired'));
       return;
     }
+    if (uploadedImages.length === 0) {
+      message.warning('请先上传至少一张打卡图片');
+      return;
+    }
     setIsGenerating(true);
     setAiState('generating');
     setResult(null);
 
-    // Simulate AI call
-    await new Promise((r) => setTimeout(r, 2000));
+    try {
+      const response = await fetch('/api/posts/generate', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          topic,
+          dayCount: parseInt(dayCount, 10),
+          style,
+          inputText: description,
+          images: uploadedImages,
+        }),
+      });
+      const payload = await response.json() as {
+        message?: string;
+        data?: {
+          result?: GeneratedResult;
+        };
+      };
+      if (!response.ok || !payload.data?.result) {
+        throw new Error(payload.message || '生成失败');
+      }
 
-    setResult(MOCK_RESULT);
-    setIsGenerating(false);
-    setAiState('done');
-    message.success(t('generateSuccess'));
+      setResult(payload.data.result);
+      setAiState('done');
+      message.success(t('generateSuccess'));
+    } catch (error) {
+      setAiState('ready');
+      message.error(error instanceof Error ? error.message : '生成失败，请稍后重试');
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   const handleClear = () => {
     setDescription('');
     setFileList([]);
+    setUploadedImages([]);
     setTopic('swimming');
     setStyle('natural');
     setDayCount('12');
     setResult(null);
     setAiState('ready');
+    setActivePreviewUrl(null);
+    setPreviewVisible(false);
   };
 
   const handleCopyAll = async () => {
@@ -120,7 +148,61 @@ export function CreateCheckin() {
   };
 
   const handleRemoveImage = (uid: string) => {
-    setFileList((prev) => prev.filter((f) => f.uid !== uid));
+    const removed = fileList.find((file) => file.uid === uid);
+    const nextFileList = fileList.filter((f) => f.uid !== uid);
+    setFileList(nextFileList);
+    if (removed?.url) {
+      setUploadedImages((prev) => prev.filter((image) => image.url !== removed.url));
+      if (activePreviewUrl === removed.url) {
+        setActivePreviewUrl(nextFileList[0]?.url ?? null);
+      }
+    }
+  };
+
+  const handleUploadFiles = async (files: File[]) => {
+    if (files.length === 0) {
+      return;
+    }
+    if (fileList.length + files.length > 9) {
+      message.warning('最多支持上传 9 张图片');
+      return;
+    }
+
+    const formData = new FormData();
+    files.forEach((file) => formData.append('files', file));
+
+    setIsUploading(true);
+    try {
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+      const payload = await response.json() as {
+        message?: string;
+        data?: {
+          images?: UploadedImage[];
+        };
+      };
+      if (!response.ok || !payload.data?.images) {
+        throw new Error(payload.message || '上传失败');
+      }
+
+      const nextFiles: UploadFile[] = payload.data.images.map((image) => ({
+        uid: image.url,
+        name: image.filename,
+        status: 'done',
+        url: image.url,
+      }));
+      setUploadedImages((prev) => [...prev, ...payload.data!.images!]);
+      setFileList((prev) => [...prev, ...nextFiles]);
+      setActivePreviewUrl((current) => current ?? nextFiles[0]?.url ?? null);
+      setAiState('ready');
+      message.success('图片上传成功');
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '图片上传失败');
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   // Cover gradient colors per index
@@ -130,6 +212,7 @@ export function CreateCheckin() {
     'linear-gradient(145deg, #fdba74, #fda4af)',
     'linear-gradient(145deg, #86efac, #67e8f9)',
   ];
+  const previewImageUrl = activePreviewUrl ?? fileList[0]?.url ?? null;
 
   return (
     <>
@@ -168,19 +251,16 @@ export function CreateCheckin() {
                   style={{display: 'none'}}
                   onChange={(e) => {
                     const files = Array.from(e.target.files || []);
-                    const newItems: UploadFile[] = files.slice(0, 9 - fileList.length).map((f, i) => ({
-                      uid: `${Date.now()}-${i}`,
-                      name: f.name,
-                      status: 'done' as const,
-                    }));
-                    setFileList((prev) => [...prev, ...newItems]);
+                    void handleUploadFiles(files);
                     e.target.value = '';
                   }}
                 />
                 <div className="create-upload-icon">
                   <UploadOutlined style={{fontSize: 22}} />
                 </div>
-                <h3 style={{fontSize: 14, margin: '10px 0 2px'}}>{t('dropHint')}</h3>
+                <h3 style={{fontSize: 14, margin: '10px 0 2px'}}>
+                  {isUploading ? '正在上传图片...' : t('dropHint')}
+                </h3>
                 <p style={{margin: 0, color: '#6b7280', fontSize: 12}}>{t('dropFormats')}</p>
 
                 {fileList.length > 0 && (
@@ -188,8 +268,11 @@ export function CreateCheckin() {
                     {fileList.map((f, idx) => (
                       <div
                         key={f.uid}
-                        className="create-thumb"
-                        style={{background: coverGradients[idx % coverGradients.length]}}
+                        className={`create-thumb${previewImageUrl === f.url ? ' active' : ''}`}
+                        style={f.url
+                          ? {backgroundImage: `url(${f.url})`, backgroundSize: 'cover', backgroundPosition: 'center'}
+                          : {background: coverGradients[idx % coverGradients.length]}}
+                        onClick={() => setActivePreviewUrl(f.url ?? null)}
                       >
                         <button
                           className="create-thumb-remove"
@@ -315,6 +398,51 @@ export function CreateCheckin() {
               </div>
             </div>
 
+            {previewImageUrl && (
+              <div className="create-image-preview-block">
+                <div className="create-block-title">
+                  <span>图片预览</span>
+                  <span>{fileList.length} / 9</span>
+                </div>
+                <div className="create-image-preview-strip">
+                  {fileList.map((file, index) => (
+                    <button
+                      key={file.uid}
+                      type="button"
+                      className={`create-image-preview-mini${previewImageUrl === file.url ? ' active' : ''}`}
+                      style={file.url
+                        ? {backgroundImage: `url(${file.url})`, backgroundSize: 'cover', backgroundPosition: 'center'}
+                        : undefined}
+                      onClick={() => {
+                        setActivePreviewUrl(file.url ?? null);
+                        setPreviewVisible(true);
+                      }}
+                      aria-label={`Preview ${file.name}`}
+                    >
+                      <span className="create-image-preview-order">{index + 1}</span>
+                    </button>
+                  ))}
+                </div>
+                <div style={{display: 'none'}}>
+                  <Image.PreviewGroup
+                    preview={{
+                      visible: previewVisible,
+                      current: Math.max(0, fileList.findIndex((file) => file.url === previewImageUrl)),
+                      onVisibleChange: setPreviewVisible,
+                      onChange: (current) => {
+                        const nextUrl = fileList[current]?.url ?? null;
+                        setActivePreviewUrl(nextUrl);
+                      },
+                    }}
+                  >
+                    {fileList.map((file) => (
+                      <Image key={file.uid} src={file.url} alt={file.name} />
+                    ))}
+                  </Image.PreviewGroup>
+                </div>
+              </div>
+            )}
+
             {/* Result Blocks */}
             {result ? (
               <>
@@ -324,7 +452,7 @@ export function CreateCheckin() {
                     <span>{t('resultTitle')}</span>
                     <span>{result.title.length} {t('charUnit')}</span>
                   </div>
-                  <Title level={4} style={{margin: 0, fontSize: 17, lineHeight: 1.5}}>
+                  <Title level={5} style={{margin: 0, fontSize: 15, lineHeight: 1.45}}>
                     {result.title}
                   </Title>
                 </div>
@@ -365,7 +493,7 @@ export function CreateCheckin() {
             ) : (
               <div className="create-empty-preview">
                 <div className="create-empty-icon">✦</div>
-                <p>{t('emptyPreview')}</p>
+                <p>{previewImageUrl ? '图片素材已就绪，点击生成后这里会出现文案结果。' : t('emptyPreview')}</p>
               </div>
             )}
           </div>

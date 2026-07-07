@@ -19,6 +19,7 @@ export interface AuthContextValue {
   user: AuthUser | null;
   status: AuthStatus;
   isAuthenticated: boolean;
+  updateUser: (user: AuthUser) => void;
 
   // Modal control
   modalOpen: boolean;
@@ -102,6 +103,11 @@ export function AuthProvider({children}: {children: React.ReactNode}) {
     setRegisteredEmail('');
   }, []);
 
+  const updateUser = useCallback((nextUser: AuthUser) => {
+    setUser(nextUser);
+    setStatus('authenticated');
+  }, []);
+
   // ── Auth actions ────────────────────────────────────────────────────────
 
   const login = useCallback(
@@ -163,6 +169,7 @@ export function AuthProvider({children}: {children: React.ReactNode}) {
       user,
       status,
       isAuthenticated: status === 'authenticated',
+      updateUser,
       modalOpen,
       modalMode,
       registeredEmail,
@@ -173,7 +180,7 @@ export function AuthProvider({children}: {children: React.ReactNode}) {
       register,
       logout,
     }),
-    [user, status, modalOpen, modalMode, registeredEmail, openAuthModal, closeAuthModal, login, register, logout]
+    [user, status, updateUser, modalOpen, modalMode, registeredEmail, openAuthModal, closeAuthModal, login, register, logout]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

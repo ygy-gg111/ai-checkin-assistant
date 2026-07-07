@@ -3,8 +3,19 @@ import {NextRequest} from 'next/server';
 import {ApiError} from '@/lib/api-handler';
 import {withAuth} from '@/lib/auth/guard';
 import {apiSuccess} from '@/lib/api-response';
+import {getAIProvider} from '@/lib/ai';
+import {prisma} from '@/lib/db';
+import {formatPostDetail} from '@/lib/posts/format';
 
-export const POST = withAuth(async (req: NextRequest) => {
+type InputImage = {
+  url: string;
+  width?: number | null;
+  height?: number | null;
+  size?: number | null;
+  mimeType?: string | null;
+};
+
+export const POST = withAuth(async (req: NextRequest, _context, session) => {
     const body = await req.json().catch(() => null);
     if (!body || typeof body !== 'object') {
       throw new ApiError('BAD_REQUEST', '请求内容必须是有效的 JSON');
@@ -19,44 +30,158 @@ export const POST = withAuth(async (req: NextRequest) => {
     } = body;
 
     // 参数校验
-    if (!topic || !inputText) {
+    if (typeof topic !== 'string' || typeof inputText !== 'string' || !topic.trim() || !inputText.trim()) {
       throw new ApiError('VALIDATION_ERROR', '打卡主题(topic)和用户描述(inputText)为必填项');
     }
-    if (!Array.isArray(images) || images.length === 0) {
+    const normalizedImages = normalizeImages(images);
+    if (normalizedImages.length === 0) {
       throw new ApiError('VALIDATION_ERROR', '请传参至少一张打卡图片地址(images)');
     }
 
-    // TODO: 1. 依据 promptTemplateId 或 topic 查询对应的 PromptTemplate (Prisma PromptTemplate.findFirst)
-    // TODO: 2. 组装组装系统提示词语与用户输入，调用 AI Provider (如 OpenAI/Claude) 接口生成文案与分析结果
-    // TODO: 3. 记录 AI 使用日志 (Prisma AIUsageLog.create)
-    // TODO: 4. 将生成的打卡记录与图片关联持久化至数据库 (Prisma Post.create + PostImage.create)
-
-    // 框架阶段：返回规范化的生成结果数据结构
-    const mockPostId = `post_${Date.now().toString(36)}`;
-    const resultData = {
-      postId: mockPostId,
-      analysis: {
-        scene: topic === 'swimming' ? '室内泳池' : topic === 'running' ? '户外跑道' : '日常生活',
-        activity: topic === 'swimming' ? '游泳训练' : topic === 'running' ? '长跑练习' : '自律打卡',
-        emotion: '轻松、充实',
-        summary: `用户自述：${inputText.slice(0, 30)}...`,
+    const template = await prisma.promptTemplate.findFirst({
+      where: {
+        isActive: true,
+        ...(typeof promptTemplateId === 'string' && promptTemplateId
+          ? {id: promptTemplateId}
+          : {scene: topic}),
       },
-      result: {
-        title: topic === 'swimming' 
-          ? '下班后的45分钟，继续和水较劲' 
-          : topic === 'running'
-          ? '迎着晚风奔跑，今天也是多巴胺拉满的一天'
-          : '自律打卡日常，认真记录每一寸时光',
-        content: `今天是${topic === 'swimming' ? '游泳' : topic === 'running' ? '跑步' : '日记'}打卡${dayCount ? `第 ${dayCount} 天` : '日常'}。\n\n${inputText}\n\n不刻意贩卖焦虑，主打一个真实且享受当下的节奏。每一次记录都是给平凡生活的一个赞，继续坚持！`,
-        tags: [
-          `#${topic === 'swimming' ? '游泳打卡' : topic === 'running' ? '跑步打卡' : '日常记录'}`,
-          '#普通人日常',
-          '#坚持100天',
-          '#小红书灵感记录',
-        ],
-        coverText: dayCount ? `Day ${dayCount}｜坚持打卡` : '记录今天的生活',
-      },
-    };
+      orderBy: {version: 'desc'},
+    });
 
-    return apiSuccess(resultData);
+    let providerName = 'openai';
+    let model = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+    const startedAt = Date.now();
+
+    try {
+      const provider = getAIProvider();
+      providerName = provider.name;
+      model = provider.model;
+
+      const generated = await provider.generatePost({
+        topic: topic.trim(),
+        inputText: inputText.trim(),
+        imageUrls: normalizedImages.map((image) => image.url),
+        style: typeof style === 'string' ? style : 'normal',
+        dayCount: parseDayCount(dayCount),
+        promptTemplate: template?.content,
+      });
+
+      const post = await prisma.post.create({
+        data: {
+          userId: session.user.id,
+          promptTemplateId: template?.id,
+          topic: topic.trim(),
+          dayCount: parseDayCount(dayCount),
+          style: typeof style === 'string' ? style : 'normal',
+          inputText: inputText.trim(),
+          analysisJson: generated.analysis,
+          title: generated.title,
+          content: generated.content,
+          tags: generated.tags,
+          coverText: generated.coverText,
+          provider: providerName,
+          model,
+          images: {
+            create: normalizedImages.map((image, index) => ({
+              url: image.url,
+              width: image.width,
+              height: image.height,
+              size: image.size,
+              mimeType: image.mimeType,
+              sortOrder: index,
+            })),
+          },
+        },
+        include: {
+          images: {
+            orderBy: {sortOrder: 'asc'},
+          },
+        },
+      });
+
+      await prisma.aIUsageLog.create({
+        data: {
+          postId: post.id,
+          provider: providerName,
+          model,
+          success: true,
+          inputTokens: generated.usage?.inputTokens,
+          outputTokens: generated.usage?.outputTokens,
+          totalTokens: generated.usage?.totalTokens,
+          durationMs: Date.now() - startedAt,
+        },
+      });
+
+      return apiSuccess({
+        postId: post.id,
+        analysis: generated.analysis,
+        result: {
+          title: generated.title,
+          content: generated.content,
+          tags: generated.tags,
+          coverText: generated.coverText,
+        },
+        post: formatPostDetail(post),
+      });
+    } catch (error) {
+      await prisma.aIUsageLog.create({
+        data: {
+          provider: providerName,
+          model,
+          success: false,
+          errorCode: 'AI_SERVICE_ERROR',
+          errorMessage: error instanceof Error ? error.message : 'Unknown AI provider error',
+          durationMs: Date.now() - startedAt,
+        },
+      }).catch(() => null);
+
+      throw new ApiError('AI_SERVICE_ERROR');
+    }
 });
+
+function normalizeImages(value: unknown): InputImage[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((item) => {
+    if (typeof item === 'string' && item.trim()) {
+      return [{url: item.trim()}];
+    }
+
+    if (typeof item === 'object' && item !== null && 'url' in item && typeof item.url === 'string' && item.url.trim()) {
+      return [{
+        url: item.url.trim(),
+        width: getOptionalNumber(item, 'width'),
+        height: getOptionalNumber(item, 'height'),
+        size: getOptionalNumber(item, 'size'),
+        mimeType: getOptionalString(item, 'mimeType'),
+      }];
+    }
+
+    return [];
+  });
+}
+
+function getOptionalNumber(source: object, key: string) {
+  const value = (source as Record<string, unknown>)[key];
+  return typeof value === 'number' ? value : null;
+}
+
+function getOptionalString(source: object, key: string) {
+  const value = (source as Record<string, unknown>)[key];
+  return typeof value === 'string' ? value : null;
+}
+
+function parseDayCount(value: unknown) {
+  if (typeof value === 'number' && Number.isInteger(value) && value > 0) {
+    return value;
+  }
+
+  if (typeof value === 'string') {
+    const parsed = parseInt(value, 10);
+    return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
+  }
+
+  return undefined;
+}

@@ -3,8 +3,9 @@ import {NextRequest} from 'next/server';
 import {ApiError} from '@/lib/api-handler';
 import {withAuth} from '@/lib/auth/guard';
 import {apiSuccess} from '@/lib/api-response';
+import {prisma} from '@/lib/db';
 
-export const GET = withAuth(async (req: NextRequest) => {
+export const GET = withAuth(async (req: NextRequest, _context, session) => {
     const {searchParams} = new URL(req.url);
     const now = new Date();
     const year = parseInt(searchParams.get('year') || String(now.getFullYear()), 10);
@@ -15,23 +16,44 @@ export const GET = withAuth(async (req: NextRequest) => {
       throw new ApiError('VALIDATION_ERROR', '年份和月份参数不合法');
     }
 
-    // TODO: 1. 依据 year 与 month 构建月份的首尾日期查询范围 (startDate, endDate)
-    // TODO: 2. 在数据库中查询对应用户在该月份范围内的打卡记录 (Prisma Post.findMany)
-    // TODO: 3. 按照日期对数据进行聚合统计，计算每日的打卡次数与包含的主题
+    const startDate = new Date(year, month - 1, 1);
+    const endDate = new Date(year, month, 1);
+    const posts = await prisma.post.findMany({
+      where: {
+        userId: session.user.id,
+        status: {not: 'DELETED'},
+        checkinDate: {
+          gte: startDate,
+          lt: endDate,
+        },
+        ...(topic && topic !== 'all' ? {topic} : {}),
+      },
+      select: {
+        topic: true,
+        checkinDate: true,
+      },
+      orderBy: {checkinDate: 'asc'},
+    });
 
-    // 框架阶段：生成并模拟当月的日历基础结构与随机打卡记录
+    const grouped = posts.reduce<Record<string, {count: number; topics: Set<string>}>>((acc, post) => {
+      const dateStr = toDateKey(post.checkinDate);
+      acc[dateStr] ??= {count: 0, topics: new Set<string>()};
+      acc[dateStr].count += 1;
+      acc[dateStr].topics.add(post.topic);
+      return acc;
+    }, {});
+
     const daysInMonth = new Date(year, month, 0).getDate();
     const days = [];
 
     for (let d = 1; d <= daysInMonth; d++) {
       const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-      // 模拟第 1、3、12 天有打卡
-      const isChecked = d === 1 || d === 3 || d === 12;
+      const dayStats = grouped[dateStr];
       days.push({
         date: dateStr,
-        checked: isChecked,
-        count: isChecked ? (d === 3 ? 2 : 1) : 0,
-        topics: isChecked ? (d === 3 ? ['swimming', 'study'] : [topic || 'swimming']) : [],
+        checked: !!dayStats,
+        count: dayStats?.count ?? 0,
+        topics: dayStats ? Array.from(dayStats.topics) : [],
       });
     }
 
@@ -41,3 +63,10 @@ export const GET = withAuth(async (req: NextRequest) => {
       days,
     });
 });
+
+function toDateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}

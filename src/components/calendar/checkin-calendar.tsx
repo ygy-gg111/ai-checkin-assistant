@@ -1,40 +1,46 @@
-'use client';
+﻿'use client';
 
 import {
   CalendarOutlined,
   FireOutlined,
   LeftOutlined,
-  PlusOutlined,
   RightOutlined,
   RiseOutlined,
   StarOutlined,
   SyncOutlined
 } from '@ant-design/icons';
-import {Button, Card, Col, Row, Tag, Typography} from 'antd';
+import {Button, Card} from 'antd';
 import {useLocale, useTranslations} from 'next-intl';
-import {useState} from 'react';
+import {useEffect, useState} from 'react';
 
 import {GuestEmptyState} from '@/components/auth/guest-empty-state';
 import {useAuth} from '@/hooks/use-auth';
 import {useRouter} from '@/i18n/navigation';
 
-const {Title, Paragraph, Text} = Typography;
-
 interface RecordItem {
   id: string;
   topic: string;
-  topicType: 'swimming' | 'study' | 'running';
+  topicType: TopicType;
   time: string;
   title: string;
   tags: string[];
 }
 
+type TopicType = 'swimming' | 'study' | 'running' | 'daily';
+
 interface CalendarDay {
   dayNum: number;
   isMuted?: boolean;
   hasCheck?: boolean;
-  events?: {text: string; type: 'swimming' | 'study' | 'running'}[];
+  events?: {text: string; type: TopicType}[];
   records?: RecordItem[];
+}
+
+interface CalendarApiDay {
+  date: string;
+  checked: boolean;
+  count: number;
+  topics: string[];
 }
 
 export function CheckinCalendar() {
@@ -45,10 +51,96 @@ export function CheckinCalendar() {
   const isEn = locale === 'en';
   const {isAuthenticated, status} = useAuth();
 
-  // Mock initial selected date: July 5, 2026
-  const [selectedDayNum, setSelectedDayNum] = useState<number>(5);
-  const [currentYear, setCurrentYear] = useState<number>(2026);
-  const [currentMonth, setCurrentMonth] = useState<number>(7);
+  const initialDate = new Date();
+  const [selectedDayNum, setSelectedDayNum] = useState<number>(initialDate.getDate());
+  const [currentYear, setCurrentYear] = useState<number>(initialDate.getFullYear());
+  const [currentMonth, setCurrentMonth] = useState<number>(initialDate.getMonth() + 1);
+  const [monthDays, setMonthDays] = useState<CalendarApiDay[]>([]);
+  const [selectedRecords, setSelectedRecords] = useState<RecordItem[]>([]);
+
+  useEffect(() => {
+    if (status === 'loading' || !isAuthenticated) {
+      return;
+    }
+
+    const controller = new AbortController();
+
+    async function loadMonth() {
+      try {
+        const params = new URLSearchParams({
+          year: String(currentYear),
+          month: String(currentMonth),
+        });
+        const response = await fetch(`/api/calendar?${params.toString()}`, {
+          signal: controller.signal,
+        });
+        if (!response.ok) {
+          throw new Error(`Failed to load calendar: ${response.status}`);
+        }
+        const payload = await response.json() as {data: {days: CalendarApiDay[]}};
+        setMonthDays(payload.data.days);
+      } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') {
+          return;
+        }
+        setMonthDays([]);
+      }
+    }
+
+    void loadMonth();
+
+    return () => controller.abort();
+  }, [currentMonth, currentYear, isAuthenticated, status]);
+
+  useEffect(() => {
+    if (status === 'loading' || !isAuthenticated) {
+      return;
+    }
+
+    const controller = new AbortController();
+    const date = `${currentYear}-${String(currentMonth).padStart(2, '0')}-${String(selectedDayNum).padStart(2, '0')}`;
+
+    async function loadDay() {
+      try {
+        const response = await fetch(`/api/calendar/day?date=${date}`, {
+          signal: controller.signal,
+        });
+        if (!response.ok) {
+          throw new Error(`Failed to load calendar day: ${response.status}`);
+        }
+        const payload = await response.json() as {
+          data: {
+            list: {
+              id: string;
+              topic: string;
+              topicType?: string;
+              dayCount: number | null;
+              title: string;
+              tags: string[];
+              time: string;
+            }[];
+          };
+        };
+        setSelectedRecords(payload.data.list.map((item) => ({
+          id: item.id,
+          topic: formatRecordTopic(item.topicType ?? item.topic, item.dayCount),
+          topicType: normalizeTopicType(item.topicType ?? item.topic),
+          time: item.time,
+          title: item.title,
+          tags: item.tags,
+        })));
+      } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') {
+          return;
+        }
+        setSelectedRecords([]);
+      }
+    }
+
+    void loadDay();
+
+    return () => controller.abort();
+  }, [currentMonth, currentYear, isAuthenticated, selectedDayNum, status]);
 
   if (status !== 'loading' && !isAuthenticated) {
     return (
@@ -61,223 +153,49 @@ export function CheckinCalendar() {
   }
 
   // Stats
+  const monthlyCheckins = monthDays.reduce((sum, day) => sum + day.count, 0);
   const stats = [
-    {label: t('statMonthlyCheckins'), value: `18 ${tDash('timeUnit')}`, icon: <RiseOutlined />},
+    {label: t('statMonthlyCheckins'), value: `${monthlyCheckins} ${tDash('timeUnit')}`, icon: <RiseOutlined />},
     {label: t('statStreak'), value: `12 ${tDash('dayUnit')}`, icon: <FireOutlined style={{color: '#f59e0b'}} />},
     {label: t('statLongestStreak'), value: `21 ${tDash('dayUnit')}`, icon: <StarOutlined style={{color: '#ea580c'}} />},
-    {label: t('statMonthlyGenerated'), value: `24 ${tDash('postUnit')}`, icon: <SyncOutlined style={{color: '#8b5cf6'}} />},
+    {label: t('statMonthlyGenerated'), value: `${monthlyCheckins} ${tDash('postUnit')}`, icon: <SyncOutlined style={{color: '#8b5cf6'}} />},
   ];
 
-  // Mock database records mapped to calendar days (localized based on current language)
-  const mockDailyRecords: Record<number, RecordItem[]> = {
-    1: [
-      {
-        id: 'rec-1',
-        topic: isEn ? 'Swim · Day 8' : '游泳 · Day 8',
-        topicType: 'swimming',
-        time: '20:15',
-        title: isEn ? 'Swimming Check-in: Breaststroke kick practice' : '游泳打卡：蛙泳手腿配合练习',
-        tags: isEn ? ['#Swimming', '#Checkin'] : ['#游泳', '#打卡']
-      }
-    ],
-    2: [
-      {
-        id: 'rec-2',
-        topic: isEn ? 'Learning' : '学习',
-        topicType: 'study',
-        time: '22:30',
-        title: isEn ? 'Learning: Deep dive into Next.js App Router' : '学习：Next.js App Router 深入解析',
-        tags: isEn ? ['#Frontend', '#Learning'] : ['#前端', '#学习']
-      }
-    ],
-    3: [
-      {
-        id: 'rec-3',
-        topic: isEn ? 'Running' : '跑步',
-        topicType: 'running',
-        time: '07:10',
-        title: isEn ? 'Morning Run 5K: Maintain breathing pace' : '晨跑 5km：保持呼吸节奏',
-        tags: isEn ? ['#Running', '#SelfDiscipline'] : ['#跑步', '#自律']
-      }
-    ],
-    4: [
-      {
-        id: 'rec-4',
-        topic: isEn ? 'Swim · Day 11' : '游泳 · Day 11',
-        topicType: 'swimming',
-        time: '20:30',
-        title: isEn ? 'Swimming Check-in: Tried short distance freestyle' : '游泳打卡：尝试短距离自由泳',
-        tags: isEn ? ['#Swimming', '#Daily'] : ['#游泳', '#日常']
-      }
-    ],
-    5: [
-      {
-        id: 'rec-5-1',
-        topic: isEn ? 'Swim · Day 12' : '游泳 · Day 12',
-        topicType: 'swimming',
-        time: '20:42',
-        title: t('swimmingTitle'),
-        tags: isEn ? ['#SwimmingCheckin', '#DeveloperLife'] : ['#游泳打卡', '#普通程序员']
-      },
-      {
-        id: 'rec-5-2',
-        topic: isEn ? 'Learning' : '学习',
-        topicType: 'study',
-        time: '22:10',
-        title: t('studyTitle'),
-        tags: isEn ? ['#LearningRecord', '#BuildProjects'] : ['#学习记录', '#做项目']
-      }
-    ],
-    7: [
-      {
-        id: 'rec-7',
-        topic: isEn ? 'Swim · Day 13' : '游泳 · Day 13',
-        topicType: 'swimming',
-        time: '19:40',
-        title: isEn ? 'Swimming Check-in: Pool was crowded, slow swam 1000m' : '游泳打卡：泳池人有点多，慢游了1000米',
-        tags: isEn ? ['#AfterWork', '#Workout'] : ['#下班日常', '#运动']
-      }
-    ],
-    9: [
-      {
-        id: 'rec-9',
-        topic: isEn ? 'Learning' : '学习',
-        topicType: 'study',
-        time: '21:50',
-        title: isEn ? 'Learning: Advanced Zustand state management' : '学习：Zustand 状态管理进阶',
-        tags: isEn ? ['#Frontend', '#React'] : ['#前端开发', '#React']
-      }
-    ],
-    10: [
-      {
-        id: 'rec-10',
-        topic: isEn ? 'Running' : '跑步',
-        topicType: 'running',
-        time: '21:15',
-        title: isEn ? 'Running: Evening jog for 40 minutes' : '跑步：晚间慢跑 40 分钟',
-        tags: isEn ? ['#NightRun', '#Exercise'] : ['#夜跑', '#锻炼']
-      }
-    ],
-    12: [
-      {
-        id: 'rec-12',
-        topic: isEn ? 'Swim · Day 16' : '游泳 · Day 16',
-        topicType: 'swimming',
-        time: '20:20',
-        title: isEn ? 'Swimming Check-in: Focus on stroke efficiency' : '游泳打卡：专注划水效率，感觉不错',
-        tags: isEn ? ['#SwimmingCheckin', '#Persistence'] : ['#游泳打卡', '#坚持']
-      }
-    ],
-    14: [
-      {
-        id: 'rec-14',
-        topic: isEn ? 'Swim · Day 17' : '游泳 · Day 17',
-        topicType: 'swimming',
-        time: '20:10',
-        title: isEn ? 'Swimming Check-in: Challenge continuous breaststroke 500m' : '游泳打卡：挑战不间断蛙泳 500 米',
-        tags: isEn ? ['#ChallengeSelf', '#Workout'] : ['#挑战自我', '#运动']
-      }
-    ],
-    16: [
-      {
-        id: 'rec-16',
-        topic: isEn ? 'Learning' : '学习',
-        topicType: 'study',
-        time: '22:00',
-        title: isEn ? 'Learning: TypeScript advanced type system study' : '学习：TypeScript 高级类型系统学习',
-        tags: isEn ? ['#Learning', '#TS'] : ['#学习', '#TS']
-      }
-    ],
-    17: [
-      {
-        id: 'rec-17',
-        topic: isEn ? 'Swim · Day 18' : '游泳 · Day 18',
-        topicType: 'swimming',
-        time: '20:30',
-        title: isEn ? 'Swimming Check-in: Practiced treading water skills' : '游泳打卡：练习踩水技巧',
-        tags: isEn ? ['#Swimming', '#Skills'] : ['#游泳', '#技能']
-      }
-    ],
-    19: [
-      {
-        id: 'rec-19',
-        topic: isEn ? 'Running' : '跑步',
-        topicType: 'running',
-        time: '08:00',
-        title: isEn ? 'Running: Weekend aerobic endurance jog 6km' : '跑步：周末有氧耐力慢跑 6km',
-        tags: isEn ? ['#WeekendRun', '#Health'] : ['#周末晨跑', '#健康']
-      }
-    ],
-    21: [
-      {
-        id: 'rec-21',
-        topic: isEn ? 'Swim · Day 20' : '游泳 · Day 20',
-        topicType: 'swimming',
-        time: '20:45',
-        title: isEn ? 'Swimming Check-in: Day 20 milestone! Finished 1500m' : '游泳打卡：第20天里程碑！蛙泳 1500 米完成',
-        tags: isEn ? ['#Milestone', '#Breaststroke'] : ['#打卡里程碑', '#蛙泳']
-      }
-    ],
-    24: [
-      {
-        id: 'rec-24',
-        topic: isEn ? 'Learning' : '学习',
-        topicType: 'study',
-        time: '22:15',
-        title: isEn ? 'Learning: Read architecture design book for 45 minutes' : '学习：系统阅读 45 分钟架构设计书',
-        tags: isEn ? ['#Architecture', '#Reading'] : ['#架构设计', '#读书记录']
-      }
-    ],
-  };
+  const monthDayMap = new Map(monthDays.map((day) => [day.date, day]));
 
-  // Helper to map record list to event items in calendar grid
-  const getEventsForDay = (day: number) => {
-    const records = mockDailyRecords[day];
-    if (!records) return undefined;
-    return records.map((r) => {
-      let text = r.topic;
-      if (r.topicType === 'swimming') text = t('swimmingDay', {day: r.topic.replace(/\D/g, '') || '12'});
-      if (r.topicType === 'study') text = t('studyLabel');
-      if (r.topicType === 'running') text = t('runningLabel', {info: r.title.includes('5km') ? '5km' : r.title.includes('6km') ? '6km' : '慢跑'});
-
-      return {
-        text,
-        type: r.topicType,
-      };
-    });
-  };
-
-  // Generate grid days for July 2026
-  // July 1st, 2026 is a Wednesday. We have 2 muted days at start (29, 30 of June).
-  // July has 31 days. 31 + 2 = 33 days. We need 2 muted days at end (1, 2 of August) to make 35 grid cells (5 full weeks).
   const generateDays = (): CalendarDay[] => {
     const daysList: CalendarDay[] = [];
+    const firstDay = new Date(currentYear, currentMonth - 1, 1);
+    const daysInMonth = new Date(currentYear, currentMonth, 0).getDate();
+    const leadingMutedCount = (firstDay.getDay() + 6) % 7;
+    const previousMonthDays = new Date(currentYear, currentMonth - 1, 0).getDate();
 
-    // June muted days (29, 30)
-    daysList.push({dayNum: 29, isMuted: true});
-    daysList.push({dayNum: 30, isMuted: true});
+    for (let i = leadingMutedCount; i > 0; i--) {
+      daysList.push({dayNum: previousMonthDays - i + 1, isMuted: true});
+    }
 
-    // July days (1 to 31)
-    for (let d = 1; d <= 31; d++) {
-      const records = mockDailyRecords[d];
+    for (let d = 1; d <= daysInMonth; d++) {
+      const date = `${currentYear}-${String(currentMonth).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      const dayStats = monthDayMap.get(date);
       daysList.push({
         dayNum: d,
-        hasCheck: !!records && records.length > 0,
-        events: getEventsForDay(d),
-        records: records,
+        hasCheck: !!dayStats?.checked,
+        events: dayStats?.topics.map((topic) => ({
+          text: formatRecordTopic(topic),
+          type: normalizeTopicType(topic),
+        })),
       });
     }
 
-    // August muted days (1, 2)
-    daysList.push({dayNum: 1, isMuted: true});
-    daysList.push({dayNum: 2, isMuted: true});
+    const trailingMutedCount = (7 - (daysList.length % 7)) % 7;
+    for (let d = 1; d <= trailingMutedCount; d++) {
+      daysList.push({dayNum: d, isMuted: true});
+    }
 
     return daysList;
   };
 
   const calendarDays = generateDays();
-  const selectedDayData = calendarDays.find((d) => !d.isMuted && d.dayNum === selectedDayNum);
-  const selectedRecords = selectedDayData?.records || [];
 
   const handlePrevMonth = () => {
     if (currentMonth === 1) {
@@ -368,7 +286,11 @@ export function CheckinCalendar() {
             <div className="calendar-days-grid">
               {calendarDays.map((day, index) => {
                 const isSelected = !day.isMuted && day.dayNum === selectedDayNum;
-                const isToday = !day.isMuted && day.dayNum === 5; // July 5, 2026 is mocked as today
+                const now = new Date();
+                const isToday = !day.isMuted &&
+                  currentYear === now.getFullYear() &&
+                  currentMonth === now.getMonth() + 1 &&
+                  day.dayNum === now.getDate();
 
                 // Determine dot/badge logic
                 const hasMultiTopics = day.events && day.events.length > 1;
@@ -400,7 +322,7 @@ export function CheckinCalendar() {
                       {day.events?.map((ev, evIdx) => {
                         let badgeColorClass = '';
                         if (ev.type === 'study') badgeColorClass = ' orange';
-                        if (ev.type === 'running') badgeColorClass = ' green';
+                        if (ev.type === 'running' || ev.type === 'daily') badgeColorClass = ' green';
 
                         return (
                           <span key={evIdx} className={`calendar-event${badgeColorClass}`}>
@@ -479,3 +401,27 @@ export function CheckinCalendar() {
     </div>
   );
 }
+
+function normalizeTopicType(topic: string): TopicType {
+  if (topic === 'swimming' || topic === 'study' || topic === 'running' || topic === 'daily') {
+    return topic;
+  }
+
+  return 'daily';
+}
+
+function formatRecordTopic(topic: string, dayCount?: number | null) {
+  const normalized = normalizeTopicType(topic);
+  if (normalized === 'swimming') {
+    return dayCount ? `游泳 · Day ${dayCount}` : '游泳';
+  }
+  if (normalized === 'running') {
+    return dayCount ? `跑步 · Day ${dayCount}` : '跑步';
+  }
+  if (normalized === 'study') {
+    return '学习';
+  }
+
+  return '日常';
+}
+
