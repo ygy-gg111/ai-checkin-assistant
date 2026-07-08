@@ -4,6 +4,7 @@ import {ApiError} from '@/lib/api-handler';
 import {withAuth} from '@/lib/auth/guard';
 import {apiSuccess} from '@/lib/api-response';
 import {prisma} from '@/lib/db';
+import {MAX_PROMPT_PERSONA_CHARS} from '@/lib/prompt';
 import {getMonthlyUsageStats} from '@/lib/usage/monthly';
 
 const DEFAULT_PERSONA = '一个普通程序员的生活重启记录。下班去游泳，偶尔跑步，偶尔摆烂。不励志，只记录。';
@@ -53,8 +54,8 @@ export const PUT = withAuth(async (req: NextRequest, _context, session) => {
     throw new ApiError('VALIDATION_ERROR', '账号人设不能为空');
   }
 
-  if (persona.length > 2000) {
-    throw new ApiError('VALIDATION_ERROR', '账号人设不能超过 2000 个字符');
+  if (persona.length > MAX_PROMPT_PERSONA_CHARS) {
+    throw new ApiError('VALIDATION_ERROR', `账号人设不能超过 ${MAX_PROMPT_PERSONA_CHARS} 个字符`);
   }
 
   const setting = await prisma.userSetting.upsert({

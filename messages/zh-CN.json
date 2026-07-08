@@ -177,7 +177,13 @@
     "monthlySummaryText": "你在晚上 8 点后最容易完成记录，游泳主题已经连续更新 12 天。",
     "viewDetail": "查看",
     "copy": "复制",
-    "more": "更多"
+    "more": "更多",
+    "regenerate": "重新生成",
+    "regenerating": "正在重新生成...",
+    "regenerateSuccess": "文案已重新生成",
+    "regenerateFailed": "重新生成失败",
+    "regenerateConfirm": "确认重新生成这条文案？",
+    "regenerateHint": "会基于原始描述和图片重新生成，并覆盖当前记录内容。"
   },
   "Prompts": {
     "title": "Prompt 设置",

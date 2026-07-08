@@ -177,7 +177,13 @@
     "monthlySummaryText": "You are most active after 8 PM, and your swimming streak has hit 12 days.",
     "viewDetail": "View",
     "copy": "Copy",
-    "more": "More"
+    "more": "More",
+    "regenerate": "Regenerate",
+    "regenerating": "Regenerating...",
+    "regenerateSuccess": "Post regenerated",
+    "regenerateFailed": "Failed to regenerate post",
+    "regenerateConfirm": "Regenerate this post?",
+    "regenerateHint": "This will regenerate from the original text and images, then overwrite the current record."
   },
   "Prompts": {
     "title": "Prompt Settings",

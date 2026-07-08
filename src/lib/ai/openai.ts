@@ -1,4 +1,11 @@
+import {
+  MAX_PROMPT_COMPLETION_TOKENS,
+  clampPromptImageUrls,
+  clampPromptInputText,
+} from '@/lib/prompt';
+
 import type {AIProvider, GeneratePostInput, GeneratePostResult} from './provider';
+const DEFAULT_SYSTEM_PROMPT = '你是小红书打卡内容生成助手，写作真实、自然、具体，不夸张营销。';
 
 type OpenAIChatResponse = {
   choices?: {
@@ -42,6 +49,7 @@ export class OpenAIProvider implements AIProvider {
       body: JSON.stringify({
         model: this.model,
         temperature: 0.7,
+        max_tokens: MAX_PROMPT_COMPLETION_TOKENS,
         response_format: {type: 'json_object'},
         messages: [
           {
@@ -80,9 +88,9 @@ export class OpenAIProvider implements AIProvider {
 }
 
 function buildSystemPrompt(template?: string) {
-  return `${template || '你是小红书打卡内容生成助手，写作真实、自然、具体，不夸张营销。'}
+  return `${template || DEFAULT_SYSTEM_PROMPT}
 
-请严格返回 JSON，不要输出 Markdown：
+请严格返回 JSON，不要输出 Markdown，格式如下：
 {
   "analysis": {
     "scene": "场景",
@@ -100,12 +108,14 @@ function buildSystemPrompt(template?: string) {
 }
 
 function buildUserPrompt(input: GeneratePostInput) {
+  const imageUrls = clampPromptImageUrls(input.imageUrls);
+
   return [
     `主题：${input.topic}`,
     input.dayCount ? `打卡天数：Day ${input.dayCount}` : null,
     input.style ? `文案风格：${input.style}` : null,
-    `用户描述：${input.inputText}`,
-    input.imageUrls.length > 0 ? `图片地址：${input.imageUrls.join(', ')}` : null,
+    `用户描述：${clampPromptInputText(input.inputText)}`,
+    imageUrls.length > 0 ? `图片地址：${imageUrls.join(', ')}` : null,
   ].filter(Boolean).join('\n');
 }
 

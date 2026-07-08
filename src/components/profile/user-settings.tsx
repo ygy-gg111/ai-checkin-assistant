@@ -7,6 +7,7 @@ import {useCallback, useEffect, useRef, useState} from 'react';
 
 import {GuestEmptyState} from '@/components/auth/guest-empty-state';
 import {useAuth} from '@/hooks/use-auth';
+import {MAX_PROMPT_PERSONA_CHARS} from '@/lib/prompt';
 
 const {Title, Text} = Typography;
 const {TextArea} = Input;
@@ -362,7 +363,12 @@ export function UserSettings() {
                 className="profile-control-textarea"
                 value={persona}
                 onChange={(e) => setPersona(e.target.value)}
+                maxLength={MAX_PROMPT_PERSONA_CHARS}
               />
+              <div className="field-limit-note">
+                <span>{isEn ? `Persona: ${persona.length} / ${MAX_PROMPT_PERSONA_CHARS}` : `人设长度：${persona.length} / ${MAX_PROMPT_PERSONA_CHARS}`}</span>
+                <span>{isEn ? 'This persona is reused in prompt generation.' : '这个人设会被复用到提示词生成里。'}</span>
+              </div>
             </div>
 
             <div className="profile-two-columns">

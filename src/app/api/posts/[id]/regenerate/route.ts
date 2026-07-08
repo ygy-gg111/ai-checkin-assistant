@@ -3,44 +3,146 @@ import {NextRequest} from 'next/server';
 import {ApiError} from '@/lib/api-handler';
 import {withAuth} from '@/lib/auth/guard';
 import {apiSuccess} from '@/lib/api-response';
+import {getAIProvider} from '@/lib/ai';
+import {prisma} from '@/lib/db';
+import {formatPostDetail, formatPostListItem} from '@/lib/posts/format';
+import {clampPromptInputText, composePromptTemplate} from '@/lib/prompt';
+
+type PostRouteContext = {params: Promise<{id: string}> | {id: string}};
 
 export const POST = withAuth(async (
   req: NextRequest,
-  context: {params: Promise<{id: string}> | {id: string}}
+  context: PostRouteContext,
+  session
 ) => {
-    const resolvedParams = await Promise.resolve(context.params);
-    const {id} = resolvedParams;
+  const resolvedParams = await Promise.resolve(context.params);
+  const {id} = resolvedParams;
 
-    if (!id) {
-      throw new ApiError('VALIDATION_ERROR', '打卡记录 ID 参数错误');
-    }
+  if (!id) {
+    throw new ApiError('VALIDATION_ERROR', '打卡记录 ID 参数错误');
+  }
 
-    const body = await req.json().catch(() => ({}));
-    const { style = 'normal', promptTemplateId } = body;
+  const body = await req.json().catch(() => ({}));
+  const style = typeof body.style === 'string' ? body.style : 'normal';
+  const promptTemplateId = typeof body.promptTemplateId === 'string' ? body.promptTemplateId.trim() : '';
 
-    // TODO: 1. 根据 id 从数据库中读取原始的 inputText 与图片信息 (Prisma Post.findUnique)
-    // TODO: 2. 如果指定了新的 promptTemplateId 或 style，重构 AI 调用入参
-    // TODO: 3. 调用 AI Provider (如 OpenAI) 从新生成文案
-    // TODO: 4. 更新数据库中该 Post 的记录信息 (Prisma Post.update) 或创建新的生成历史
-    // TODO: 5. 记录 AI 使用日志 (Prisma AIUsageLog.create)
-
-    // 框架阶段：返回规范模拟重新生成结构
-    const regenerateData = {
-      postId: id,
-      result: {
-        title: style === 'funny' 
-          ? '牛马下班后的泳池重启计划，主打一个灵魂慢半拍' 
-          : '重新梳理节奏，在水声中找回自己',
-        content: `今天继续去游泳，换了一种心态记录。\n\n主打一个人到泳池，灵魂慢半拍。工作里想不通的 Bug，在水下蹬腿的那一刻全忘了。不管是第几天，只要在水里就是胜利！`,
-        tags: [
-          '#游泳打卡',
-          '#牛马日常',
-          '#普通程序员',
-          '#下班去哪儿',
-        ],
-        coverText: style === 'funny' ? '牛马重启 Day 12' : '在水里找回节奏',
+  const [post, userSetting] = await Promise.all([
+    prisma.post.findFirst({
+      where: {
+        id,
+        userId: session.user.id,
+        status: {not: 'DELETED'},
       },
-    };
+      include: {
+        images: {
+          orderBy: {sortOrder: 'asc'},
+        },
+        promptTemplate: true,
+      },
+    }),
+    prisma.userSetting.findUnique({
+      where: {userId: session.user.id},
+      select: {persona: true},
+    }),
+  ]);
 
-    return apiSuccess(regenerateData);
+  if (!post) {
+    throw new ApiError('NOT_FOUND', '打卡记录不存在');
+  }
+
+  const nextPromptTemplate = promptTemplateId
+    ? await prisma.promptTemplate.findFirst({
+        where: {
+          id: promptTemplateId,
+          scene: post.topic,
+          isActive: true,
+        },
+      })
+    : post.promptTemplate;
+
+  if (promptTemplateId && !nextPromptTemplate) {
+    throw new ApiError('VALIDATION_ERROR', '所选 Prompt 模板不存在、未启用，或与当前打卡主题不匹配');
+  }
+
+  let providerName = 'openai';
+  let model = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+  const startedAt = Date.now();
+
+  try {
+    const provider = getAIProvider();
+    providerName = provider.name;
+    model = provider.model;
+
+    const generated = await provider.generatePost({
+      topic: post.topic,
+      inputText: clampPromptInputText(post.inputText),
+      imageUrls: post.images.map((image) => image.url),
+      style,
+      dayCount: post.dayCount ?? undefined,
+      promptTemplate: composePromptTemplate({
+        persona: userSetting?.persona,
+        template: nextPromptTemplate?.content,
+      }),
+    });
+
+    const updatedPost = await prisma.post.update({
+      where: {id: post.id},
+      data: {
+        promptTemplateId: nextPromptTemplate?.id ?? null,
+        style,
+        analysisJson: generated.analysis,
+        title: generated.title,
+        content: generated.content,
+        tags: generated.tags,
+        coverText: generated.coverText,
+        provider: providerName,
+        model,
+      },
+      include: {
+        images: {
+          orderBy: {sortOrder: 'asc'},
+        },
+      },
+    });
+
+    await prisma.aIUsageLog.create({
+      data: {
+        postId: updatedPost.id,
+        provider: providerName,
+        model,
+        success: true,
+        inputTokens: generated.usage?.inputTokens,
+        outputTokens: generated.usage?.outputTokens,
+        totalTokens: generated.usage?.totalTokens,
+        durationMs: Date.now() - startedAt,
+      },
+    });
+
+    return apiSuccess({
+      postId: updatedPost.id,
+      analysis: generated.analysis,
+      result: {
+        title: generated.title,
+        content: generated.content,
+        tags: generated.tags,
+        coverText: generated.coverText,
+      },
+      post: formatPostDetail(updatedPost),
+      listItem: formatPostListItem(updatedPost),
+    });
+  } catch (error) {
+    await prisma.aIUsageLog.create({
+      data: {
+        postId: post.id,
+        provider: providerName,
+        model,
+        success: false,
+        errorCode: 'AI_SERVICE_ERROR',
+        errorMessage: error instanceof Error ? error.message : 'Unknown AI provider error',
+        durationMs: Date.now() - startedAt,
+      },
+    }).catch(() => null);
+
+    throw new ApiError('AI_SERVICE_ERROR');
+  }
 });

@@ -6,10 +6,16 @@ import {
 } from '@ant-design/icons';
 import {App, Button, Card, Col, Image, Input, Row, Select, Space, Typography} from 'antd';
 import type {UploadFile} from 'antd';
-import {useTranslations} from 'next-intl';
+import {useLocale, useTranslations} from 'next-intl';
 import {useEffect, useMemo, useRef, useState} from 'react';
 
 import {useAuth} from '@/hooks/use-auth';
+import {
+  MAX_PROMPT_COMPLETION_TOKENS,
+  MAX_PROMPT_IMAGE_URLS,
+  MAX_PROMPT_INPUT_CHARS,
+  MAX_PROMPT_TEMPLATE_CHARS,
+} from '@/lib/prompt';
 
 const {Title, Paragraph, Text} = Typography;
 const {TextArea} = Input;
@@ -61,8 +67,10 @@ const STYLES: {key: Style; labelKey: StyleLabelKey}[] = [
 export function CreateCheckin() {
   const t = useTranslations('Create');
   const tAuth = useTranslations('Auth');
+  const locale = useLocale();
   const {message} = App.useApp();
   const {isAuthenticated, status, openAuthModal} = useAuth();
+  const isEn = locale === 'en';
 
   const [fileList, setFileList] = useState<UploadFile[]>([]);
   const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>([]);
@@ -89,6 +97,7 @@ export function CreateCheckin() {
   const selectedPromptTemplate = currentPromptTemplates.find((template) => template.id === selectedPromptTemplateId)
     ?? currentPromptTemplates[0];
   const effectivePromptTemplateId = selectedPromptTemplate?.id;
+  const aiImageCount = Math.min(uploadedImages.length, MAX_PROMPT_IMAGE_URLS);
 
   useEffect(() => {
     if (status === 'loading' || !isAuthenticated) {
@@ -302,6 +311,10 @@ export function CreateCheckin() {
                 <span>{t('uploadLabel')}</span>
                 <small style={{color: '#9ca3af', fontWeight: 400}}>{fileList.length} / 9</small>
               </label>
+              <div className="field-limit-note">
+                <span>{isEn ? 'Upload up to 9 images for the post.' : '页面最多可上传 9 张图片。'}</span>
+                <span>{isEn ? `Only the first ${MAX_PROMPT_IMAGE_URLS} image links are sent into the AI prompt.` : `真正送入 AI 的只会是前 ${MAX_PROMPT_IMAGE_URLS} 张图片链接。`}</span>
+              </div>
               <div
                 className="create-drop-zone"
                 onClick={() => {
@@ -371,17 +384,22 @@ export function CreateCheckin() {
               <label className="create-field-label">
                 <span>{t('descLabel')}</span>
                 <small style={{color: descLength > 450 ? '#ef4444' : '#9ca3af', fontWeight: 400}}>
-                  {descLength} / 500
+                  {descLength} / {MAX_PROMPT_INPUT_CHARS}
                 </small>
               </label>
               <TextArea
                 className="create-textarea"
                 value={description}
-                onChange={(e) => setDescription(e.target.value.slice(0, 500))}
+                onChange={(e) => setDescription(e.target.value.slice(0, MAX_PROMPT_INPUT_CHARS))}
                 placeholder={t('descPlaceholder')}
                 rows={3}
+                maxLength={MAX_PROMPT_INPUT_CHARS}
                 style={{resize: 'none', borderRadius: 12, fontSize: 14}}
               />
+              <div className="field-limit-note">
+                <span>{isEn ? `Input cap: ${MAX_PROMPT_INPUT_CHARS} characters.` : `输入上限：${MAX_PROMPT_INPUT_CHARS} 个字符。`}</span>
+                <span>{isEn ? `Model output is capped at about ${MAX_PROMPT_COMPLETION_TOKENS} tokens.` : `模型输出已限制在约 ${MAX_PROMPT_COMPLETION_TOKENS} tokens。`}</span>
+              </div>
             </div>
 
             {/* Topic + Day Count */}
@@ -465,6 +483,10 @@ export function CreateCheckin() {
                     <span>{selectedPromptTemplate.scene}</span>
                   </div>
                   <p>{selectedPromptTemplate.content}</p>
+                  <div className="field-limit-note compact">
+                    <span>{isEn ? `Template: ${selectedPromptTemplate.content.length} / ${MAX_PROMPT_TEMPLATE_CHARS}` : `模板长度：${selectedPromptTemplate.content.length} / ${MAX_PROMPT_TEMPLATE_CHARS}`}</span>
+                    <span>{isEn ? `This generation will send ${aiImageCount}/${uploadedImages.length || 0} image links.` : `本次生成会送入 ${aiImageCount}/${uploadedImages.length || 0} 张图片链接。`}</span>
+                  </div>
                 </div>
               ) : (
                 <div className="create-prompt-hint">暂无模板，使用系统默认 Prompt</div>

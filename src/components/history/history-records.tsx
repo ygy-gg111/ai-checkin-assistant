@@ -6,6 +6,7 @@ import {
   EllipsisOutlined,
   EyeOutlined,
   FileTextOutlined,
+  ReloadOutlined,
   SearchOutlined
 } from '@ant-design/icons';
 import {App, Button, Card, Dropdown, Image, Modal, Popconfirm, Select, Tag} from 'antd';
@@ -47,6 +48,17 @@ interface HistoryDetail extends HistoryItem {
     id: string;
     url: string;
   }[];
+}
+
+interface RegenerateResponse {
+  result: {
+    title: string;
+    content: string;
+    tags: string[];
+    coverText?: string | null;
+  };
+  post: HistoryDetail;
+  listItem: HistoryItem;
 }
 
 type HistoryApiData = {
@@ -95,6 +107,7 @@ export function HistoryRecords() {
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
   const [selectedDetail, setSelectedDetail] = useState<HistoryDetail | null>(null);
+  const [regeneratingId, setRegeneratingId] = useState<string | null>(null);
   const topTopic = [...stats.topicDistribution].sort((a, b) => b.count - a.count)[0];
 
   useEffect(() => {
@@ -275,6 +288,38 @@ export function HistoryRecords() {
     }
   };
 
+  const handleRegenerate = async (record: Pick<HistoryItem, 'id' | 'style'>) => {
+    setRegeneratingId(record.id);
+    try {
+      const response = await fetch(`/api/posts/${record.id}/regenerate`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          style: record.style ?? 'natural',
+        }),
+      });
+
+      const payload = await response.json() as {message?: string; data?: RegenerateResponse};
+      if (!response.ok || !payload.data) {
+        throw new Error(payload.message || t('regenerateFailed'));
+      }
+
+      setRecords((items) => items.map((item) => (
+        item.id === record.id ? payload.data!.listItem : item
+      )));
+
+      if (selectedDetail?.id === record.id) {
+        setSelectedDetail(payload.data.post);
+      }
+
+      message.success(t('regenerateSuccess'));
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : t('regenerateFailed'));
+    } finally {
+      setRegeneratingId(null);
+    }
+  };
+
   // Cover gradient backgrounds per index
   const coverGradients = [
     'linear-gradient(145deg, #93c5fd, #c4b5fd)',
@@ -391,10 +436,32 @@ export function HistoryRecords() {
                   onClick={() => void handleCopyRecord(rec)}
                   title={t('copy')}
                 />
+                <Button
+                  className="history-mini-btn"
+                  icon={<ReloadOutlined />}
+                  loading={regeneratingId === rec.id}
+                  onClick={() => void handleRegenerate(rec)}
+                  title={t('regenerate')}
+                />
                 <Dropdown
                   trigger={['click']}
                   menu={{
                     items: [
+                      {
+                        key: 'regenerate',
+                        icon: <ReloadOutlined />,
+                        label: (
+                          <Popconfirm
+                            title={t('regenerateConfirm')}
+                            description={t('regenerateHint')}
+                            okText={t('regenerate')}
+                            cancelText={isEn ? 'Cancel' : '取消'}
+                            onConfirm={() => void handleRegenerate(rec)}
+                          >
+                            <span>{t('regenerate')}</span>
+                          </Popconfirm>
+                        ),
+                      },
                       {
                         key: 'delete',
                         danger: true,
@@ -508,6 +575,14 @@ export function HistoryRecords() {
         open={detailOpen}
         onCancel={() => setDetailOpen(false)}
         footer={[
+          <Button
+            key="regenerate"
+            icon={<ReloadOutlined />}
+            loading={selectedDetail ? regeneratingId === selectedDetail.id : false}
+            onClick={() => selectedDetail && void handleRegenerate(selectedDetail)}
+          >
+            {regeneratingId === selectedDetail?.id ? t('regenerating') : t('regenerate')}
+          </Button>,
           <Button key="copy" type="primary" onClick={() => selectedDetail && void handleCopy(selectedDetail.content)}>
             {t('copy')}
           </Button>,
