@@ -1,7 +1,7 @@
 'use client';
 
 import {SettingOutlined, UserOutlined} from '@ant-design/icons';
-import {App, Avatar, Button, Input, Select, Typography} from 'antd';
+import {App, Avatar, Button, Input, Select, Space, Typography} from 'antd';
 import {useLocale, useTranslations} from 'next-intl';
 import {useCallback, useEffect, useRef, useState} from 'react';
 
@@ -274,19 +274,34 @@ export function UserSettings() {
   };
 
   return (
-    <div style={{paddingBottom: 24}}>
-      <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 22, flexWrap: 'wrap', gap: 10}}>
+    <>
+      <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 10}}>
         <div>
           <Title level={3} style={{margin: 0}}>{t('title')}</Title>
           <Text type="secondary" style={{fontSize: 13}}>{t('subtitle')}</Text>
         </div>
-        <Button onClick={handleHelp} style={{borderRadius: 10, fontWeight: 600}}>
-          {t('helpCenter')}
-        </Button>
+        <Space size={10} style={{flexWrap: 'wrap'}}>
+          <Button onClick={handleCancel} style={{borderRadius: 10, fontWeight: 600}}>
+            {t('cancel')}
+          </Button>
+          <Button
+            type="primary"
+            loading={isSaving}
+            disabled={isLoadingSettings}
+            onClick={() => void handleSave()}
+            style={{borderRadius: 10, fontWeight: 700}}
+          >
+            {t('save')}
+          </Button>
+          <Button onClick={handleHelp} style={{borderRadius: 10, fontWeight: 600}}>
+            {t('helpCenter')}
+          </Button>
+        </Space>
       </div>
 
       <div className="profile-grid">
-        <aside className="profile-card">
+        <aside className="profile-left-panel">
+          <div className="profile-card">
           <div className="profile-intro-section">
             <input
               ref={fileInputRef}
@@ -335,7 +350,48 @@ export function UserSettings() {
               <b>{user ? user.id.slice(0, 8) : 'usr_0000'}</b>
             </div>
           </div>
-        </aside>
+        </div>
+
+        <div className="profile-card profile-settings-section" style={{padding: '16px 18px'}}>
+          <div className="profile-section-title" style={{marginBottom: 12}}>
+            <span className="profile-section-icon">▱</span>
+            <div>
+              <h2>{t('storageTitle')}</h2>
+              <p>{t('storageDesc')}</p>
+            </div>
+          </div>
+
+          <div style={{display: 'flex', flexDirection: 'column', gap: 12}}>
+            <div className="profile-field" style={{marginBottom: 0}}>
+              <label style={{marginBottom: 5, fontSize: 12, fontWeight: 700, display: 'block', color: 'var(--app-text)'}}>{t('storageMethod')}</label>
+              <Select
+                className="profile-control-input"
+                style={{width: '100%'}}
+                value={storageMethod}
+                onChange={setStorageMethod}
+                options={[
+                  {value: 'cloudflare-r2', label: 'Cloudflare R2'},
+                  {value: 'local', label: isEn ? 'Local Storage' : '本地存储'},
+                ]}
+              />
+            </div>
+            <div className="profile-field" style={{marginBottom: 0}}>
+              <label style={{marginBottom: 5, fontSize: 12, fontWeight: 700, display: 'block', color: 'var(--app-text)'}}>{t('storageRegion')}</label>
+              <Select
+                className="profile-control-input"
+                style={{width: '100%'}}
+                value={storageRegion}
+                onChange={setStorageRegion}
+                options={[
+                  {value: 'ap-east', label: 'Asia Pacific (Hong Kong)'},
+                  {value: 'us-east', label: 'US East (N. Virginia)'},
+                  {value: 'eu-west', label: 'Europe (Frankfurt)'},
+                ]}
+              />
+            </div>
+          </div>
+        </div>
+      </aside>
 
         <section className="profile-settings-group">
           <div className="profile-card profile-settings-section">
@@ -452,43 +508,7 @@ export function UserSettings() {
             </div>
           </div>
 
-          <div className="profile-card profile-settings-section">
-            <div className="profile-section-title">
-              <span className="profile-section-icon">▱</span>
-              <div>
-                <h2>{t('storageTitle')}</h2>
-                <p>{t('storageDesc')}</p>
-              </div>
-            </div>
 
-            <div className="profile-two-columns">
-              <div className="profile-field">
-                <label>{t('storageMethod')}</label>
-                <Select
-                  className="profile-control-input"
-                  value={storageMethod}
-                  onChange={setStorageMethod}
-                  options={[
-                    {value: 'cloudflare-r2', label: 'Cloudflare R2'},
-                    {value: 'local', label: isEn ? 'Local Storage' : '本地存储'},
-                  ]}
-                />
-              </div>
-              <div className="profile-field">
-                <label>{t('storageRegion')}</label>
-                <Select
-                  className="profile-control-input"
-                  value={storageRegion}
-                  onChange={setStorageRegion}
-                  options={[
-                    {value: 'ap-east', label: 'Asia Pacific (Hong Kong)'},
-                    {value: 'us-east', label: 'US East (N. Virginia)'},
-                    {value: 'eu-west', label: 'Europe (Frankfurt)'},
-                  ]}
-                />
-              </div>
-            </div>
-          </div>
         </section>
 
         <aside className="profile-side-panel">
@@ -538,6 +558,8 @@ export function UserSettings() {
             </div>
           </div>
 
+
+
           <div className="profile-card profile-danger-card">
             <Button className="profile-logout-btn" onClick={() => void handleLogout()}>
               {t('logout')}
@@ -546,16 +568,9 @@ export function UserSettings() {
           </div>
         </aside>
 
-        <div className="profile-savebar">
-          <Button className="btn" onClick={handleCancel}>
-            {t('cancel')}
-          </Button>
-          <Button className="btn primary" loading={isSaving} disabled={isLoadingSettings} onClick={() => void handleSave()}>
-            {t('save')}
-          </Button>
-        </div>
+
       </div>
-    </div>
+    </>
   );
 }
 

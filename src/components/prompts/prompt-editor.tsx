@@ -10,6 +10,7 @@ import {
   Space,
   Spin,
   Tag,
+  Tooltip,
   Typography
 } from 'antd';
 import {useLocale, useTranslations} from 'next-intl';
@@ -557,26 +558,37 @@ export function PromptEditor() {
             ))}
           </div>
 
-          <Space direction="vertical" size={6} style={{width: '100%', marginTop: 4}}>
-            {sceneTemplates.map((template) => {
-              const isActive = selectedTemplate?.id === template.id;
-              return (
-                <button
-                  key={template.id}
-                  className={`prompt-template-btn${isActive ? ' active' : ''}`}
-                  onClick={() => selectTemplate(template)}
-                >
-                  <span className="prompt-template-icon">{template.version}</span>
-                  <div style={{textAlign: 'left'}}>
-                    <b>{template.name}</b>
-                    <small>
-                      v{template.version} · {template.isActive ? (isEn ? 'Enabled' : '已启用') : (isEn ? 'Disabled' : '已停用')}
-                    </small>
-                  </div>
-                </button>
-              );
-            })}
-          </Space>
+          <div className="prompt-templates-list">
+            <Space direction="vertical" size={6} style={{width: '100%', marginTop: 4}}>
+              {sceneTemplates.map((template) => {
+                const isActive = selectedTemplate?.id === template.id;
+                return (
+                  <button
+                    key={template.id}
+                    className={`prompt-template-btn${isActive ? ' active' : ''}`}
+                    onClick={() => selectTemplate(template)}
+                  >
+                    <span className="prompt-template-icon">{template.version}</span>
+                    <div style={{textAlign: 'left', flex: 1, minWidth: 0}}>
+                      <Tooltip title={template.name} placement="topLeft">
+                        <b style={{
+                          display: 'block',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap'
+                        }}>
+                          {template.name}
+                        </b>
+                      </Tooltip>
+                      <small>
+                        v{template.version} · {template.isActive ? (isEn ? 'Enabled' : '已启用') : (isEn ? 'Disabled' : '已停用')}
+                      </small>
+                    </div>
+                  </button>
+                );
+              })}
+            </Space>
+          </div>
 
           {isLoading ? (
             <div style={{padding: '18px 14px', textAlign: 'center'}}>
@@ -597,10 +609,31 @@ export function PromptEditor() {
 
         <section className="calendar-card" style={{display: 'flex', flexDirection: 'column'}}>
           <div className="prompt-editor-top">
-            <div className="prompt-file-info">
+            <div className="prompt-file-info" style={{ minWidth: 0, overflow: 'hidden' }}>
               <span>●</span>
-              {selectedTemplate ? `${selectedTemplate.name}.md` : (isEn ? 'No template selected' : '未选择模板')}
-              {selectedTemplate ? <span className="prompt-version-token">v{selectedTemplate.version}</span> : null}
+              {selectedTemplate ? (
+                <Tooltip title={`${selectedTemplate.name}.md`} placement="top">
+                  <span style={{
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    cursor: 'pointer',
+                    minWidth: 0,
+                    flex: 1
+                  }}>
+                    {selectedTemplate.name}.md
+                  </span>
+                </Tooltip>
+              ) : (
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {isEn ? 'No template selected' : '未选择模板'}
+                </span>
+              )}
+              {selectedTemplate ? (
+                <span className="prompt-version-token" style={{ flexShrink: 0 }}>
+                  v{selectedTemplate.version}
+                </span>
+              ) : null}
             </div>
             <span className="prompt-live-badge" style={{color: hasUnsavedChanges ? '#d97706' : '#059669'}}>
               <span
@@ -660,7 +693,7 @@ export function PromptEditor() {
                 disabled={!selectedTemplate}
                 onChange={(event) => setPromptCode(event.target.value)}
                 maxLength={MAX_PROMPT_TEMPLATE_CHARS}
-                rows={12}
+                rows={7}
               />
               <div className="field-limit-note">
                 <span>{isEn ? `Template: ${promptCodeLength} / ${MAX_PROMPT_TEMPLATE_CHARS}` : `模板长度：${promptCodeLength} / ${MAX_PROMPT_TEMPLATE_CHARS}`}</span>

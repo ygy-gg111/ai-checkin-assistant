@@ -14,7 +14,6 @@ import {
   MAX_PROMPT_COMPLETION_TOKENS,
   MAX_PROMPT_IMAGE_URLS,
   MAX_PROMPT_INPUT_CHARS,
-  MAX_PROMPT_TEMPLATE_CHARS,
 } from '@/lib/prompt';
 
 const {Title, Paragraph, Text} = Typography;
@@ -97,7 +96,6 @@ export function CreateCheckin() {
   const selectedPromptTemplate = currentPromptTemplates.find((template) => template.id === selectedPromptTemplateId)
     ?? currentPromptTemplates[0];
   const effectivePromptTemplateId = selectedPromptTemplate?.id;
-  const aiImageCount = Math.min(uploadedImages.length, MAX_PROMPT_IMAGE_URLS);
 
   useEffect(() => {
     if (status === 'loading' || !isAuthenticated) {
@@ -476,21 +474,7 @@ export function CreateCheckin() {
                 }))}
                 notFoundContent={isLoadingPrompts ? '加载中...' : '当前主题暂无可用模板'}
               />
-              {selectedPromptTemplate ? (
-                <div className="create-prompt-preview">
-                  <div className="create-prompt-preview-title">
-                    <span>当前模板预览</span>
-                    <span>{selectedPromptTemplate.scene}</span>
-                  </div>
-                  <p>{selectedPromptTemplate.content}</p>
-                  <div className="field-limit-note compact">
-                    <span>{isEn ? `Template: ${selectedPromptTemplate.content.length} / ${MAX_PROMPT_TEMPLATE_CHARS}` : `模板长度：${selectedPromptTemplate.content.length} / ${MAX_PROMPT_TEMPLATE_CHARS}`}</span>
-                    <span>{isEn ? `This generation will send ${aiImageCount}/${uploadedImages.length || 0} image links.` : `本次生成会送入 ${aiImageCount}/${uploadedImages.length || 0} 张图片链接。`}</span>
-                  </div>
-                </div>
-              ) : (
-                <div className="create-prompt-hint">暂无模板，使用系统默认 Prompt</div>
-              )}
+
             </div>
           </div>
         </Card>

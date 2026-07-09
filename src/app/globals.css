@@ -1730,11 +1730,38 @@ body {
   gap: 18px;
   max-width: 1160px;
   margin: 0 auto;
-  align-items: start;
+  align-items: stretch;
+  height: calc(100vh - 72px - 56px);
+  overflow: hidden;
+}
+
+.prompt-layout > * {
+  height: 100%;
+  min-height: 0;
 }
 
 .prompt-templates-panel {
   padding: 10px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.prompt-templates-list {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+  padding-right: 4px;
+}
+.prompt-templates-list::-webkit-scrollbar {
+  width: 4px;
+}
+.prompt-templates-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+.prompt-templates-list::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 999px;
 }
 
 .prompt-template-btn {
@@ -1825,6 +1852,7 @@ body {
   font-size: 12px;
   font-weight: 700;
   color: #374151;
+  max-width: 75%;
 }
 .prompt-file-info span {
   color: #94a3b8;
@@ -1837,10 +1865,25 @@ body {
   display: flex;
   align-items: center;
   gap: 5px;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .prompt-editor-body {
   padding: 18px;
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+.prompt-editor-body::-webkit-scrollbar {
+  width: 4px;
+}
+.prompt-editor-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+.prompt-editor-body::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 999px;
 }
 
 .prompt-field {
@@ -1882,7 +1925,7 @@ body {
   resize: none;
 }
 .prompt-textarea.prompt-code {
-  height: 310px;
+  height: 220px;
   resize: none;
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace !important;
   font-size: 12px !important;
@@ -1913,8 +1956,9 @@ body {
 }
 
 .prompt-preview-card {
-  position: sticky;
-  top: 94px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 .prompt-preview-body {
@@ -1922,6 +1966,19 @@ body {
   display: flex;
   flex-direction: column;
   gap: 13px;
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+.prompt-preview-body::-webkit-scrollbar {
+  width: 4px;
+}
+.prompt-preview-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+.prompt-preview-body::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 999px;
 }
 
 .prompt-section-label {
@@ -2034,11 +2091,21 @@ body {
   .prompt-layout {
     grid-template-columns: 1fr;
     gap: 14px;
+    height: auto;
+    overflow: visible;
+  }
+  .prompt-layout > * {
+    height: auto;
+    min-height: auto;
   }
   .prompt-templates-panel {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
     gap: 6px;
+    height: auto;
+  }
+  .prompt-templates-list {
+    display: contents;
   }
   .prompt-template-btn {
     padding: 8px !important;
@@ -2046,11 +2113,17 @@ body {
   .prompt-new-btn {
     margin-top: 0;
   }
+  .prompt-editor-body {
+    height: auto;
+    overflow: visible;
+  }
   .prompt-preview-card {
-    position: static;
+    height: auto;
   }
   .prompt-preview-body {
     grid-template-columns: 1fr 1fr;
+    height: auto;
+    overflow: visible;
   }
   .prompt-preview-body > .prompt-section-label,
   .prompt-preview-body > .prompt-meta-info {
@@ -2312,6 +2385,7 @@ body {
   font-weight: 700;
 }
 
+.profile-left-panel,
 .profile-side-panel {
   display: grid;
   gap: 16px;
@@ -2448,6 +2522,53 @@ body {
 @media (min-width: 1200px) {
   .profile-grid {
     grid-template-columns: 280px 1fr 280px;
+    align-items: stretch;
+    height: calc(100vh - 190px);
+    overflow: hidden;
+  }
+  .profile-grid > * {
+    height: 100%;
+    min-height: 0;
+  }
+  .profile-left-panel,
+  .profile-side-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    overflow-y: auto;
+    min-height: 0;
+    padding-right: 4px;
+  }
+  .profile-left-panel::-webkit-scrollbar,
+  .profile-side-panel::-webkit-scrollbar {
+    width: 4px;
+  }
+  .profile-left-panel::-webkit-scrollbar-track,
+  .profile-side-panel::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .profile-left-panel::-webkit-scrollbar-thumb,
+  .profile-side-panel::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 999px;
+  }
+  .profile-settings-group {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    overflow-y: auto;
+    min-height: 0;
+    padding-right: 4px;
+  }
+  .profile-settings-group::-webkit-scrollbar {
+    width: 4px;
+  }
+  .profile-settings-group::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .profile-settings-group::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 999px;
   }
   .profile-side-panel {
     grid-column: auto;

@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  CopyOutlined,
   CalendarOutlined,
   FireOutlined,
   LeftOutlined,
@@ -9,7 +10,7 @@ import {
   StarOutlined,
   SyncOutlined
 } from '@ant-design/icons';
-import {Button, Card} from 'antd';
+import {App, Button, Card, Image, Modal, Tag} from 'antd';
 import {useLocale, useTranslations} from 'next-intl';
 import {useEffect, useState} from 'react';
 
@@ -43,11 +44,39 @@ interface CalendarApiDay {
   topics: string[];
 }
 
+function formatDetailDate(dateString: string, isEn: boolean) {
+  const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) {
+    return dateString;
+  }
+
+  if (isEn) {
+    return date.toLocaleDateString('en-US', {month: 'short', day: 'numeric', year: 'numeric'});
+  }
+
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
 interface CalendarStats {
   monthlyCheckins: number;
   monthlyGenerated: number;
   currentStreak: number;
   longestStreak: number;
+}
+
+interface RecordDetail {
+  id: string;
+  topic: string;
+  dayCount: number | null;
+  title: string;
+  content: string;
+  tags: string[];
+  model: string;
+  checkinDate: string;
+  images: {
+    id: string;
+    url: string;
+  }[];
 }
 
 export function CheckinCalendar() {
@@ -57,6 +86,7 @@ export function CheckinCalendar() {
   const router = useRouter();
   const isEn = locale === 'en';
   const {isAuthenticated, status} = useAuth();
+  const {message} = App.useApp();
 
   const initialDate = new Date();
   const [selectedDayNum, setSelectedDayNum] = useState<number>(initialDate.getDate());
@@ -70,6 +100,9 @@ export function CheckinCalendar() {
     longestStreak: 0,
   });
   const [selectedRecords, setSelectedRecords] = useState<RecordItem[]>([]);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [detailLoadingId, setDetailLoadingId] = useState<string | null>(null);
+  const [selectedDetail, setSelectedDetail] = useState<RecordDetail | null>(null);
 
   useEffect(() => {
     if (status === 'loading' || !isAuthenticated) {
@@ -260,6 +293,37 @@ export function CheckinCalendar() {
     setSelectedDayNum(day.dayNum);
   };
 
+  const handleOpenDetail = async (recordId: string) => {
+    setDetailLoadingId(recordId);
+    try {
+      const response = await fetch(`/api/posts/${recordId}`);
+      if (!response.ok) {
+        throw new Error(`Failed to load detail: ${response.status}`);
+      }
+
+      const payload = await response.json() as {data: RecordDetail};
+      setSelectedDetail(payload.data);
+      setDetailOpen(true);
+    } catch {
+      message.error(isEn ? 'Failed to load detail' : '详情加载失败');
+    } finally {
+      setDetailLoadingId(null);
+    }
+  };
+
+  const handleCopyDetail = async () => {
+    if (!selectedDetail) {
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(selectedDetail.content);
+      message.success(isEn ? 'Copied to clipboard!' : '已复制文案');
+    } catch {
+      message.error(isEn ? 'Failed to copy' : '复制失败');
+    }
+  };
+
   return (
     <div className="calendar-wrap">
       {/* Stats Row */}
@@ -392,7 +456,11 @@ export function CheckinCalendar() {
                         <span key={tag}>{tag}</span>
                       ))}
                     </div>
-                    <Button className="calendar-record-view-btn">
+                    <Button
+                      className="calendar-record-view-btn"
+                      loading={detailLoadingId === rec.id}
+                      onClick={() => void handleOpenDetail(rec.id)}
+                    >
                       {t('viewDetail')}
                     </Button>
                   </article>
@@ -424,6 +492,62 @@ export function CheckinCalendar() {
           </div>
         </aside>
       </div>
+
+      <Modal
+        title={selectedDetail?.title ?? t('viewDetail')}
+        open={detailOpen}
+        onCancel={() => setDetailOpen(false)}
+        footer={[
+          <Button
+            key="copy"
+            type="primary"
+            icon={<CopyOutlined />}
+            onClick={() => void handleCopyDetail()}
+            disabled={!selectedDetail}
+          >
+            {isEn ? 'Copy content' : '复制文案'}
+          </Button>,
+          <Button key="close" onClick={() => setDetailOpen(false)}>
+            {isEn ? 'Close' : '关闭'}
+          </Button>,
+        ]}
+        width={760}
+      >
+        {selectedDetail ? (
+          <div style={{display: 'flex', flexDirection: 'column', gap: 14}}>
+            {selectedDetail.images.length > 0 ? (
+              <Image.PreviewGroup>
+                <div style={{display: 'grid', gridTemplateColumns: 'repeat(3, 88px)', gap: 8}}>
+                  {selectedDetail.images.map((image) => (
+                    <Image
+                      key={image.id}
+                      src={image.url}
+                      alt={selectedDetail.title}
+                      width={88}
+                      height={88}
+                      style={{objectFit: 'cover', borderRadius: 8}}
+                    />
+                  ))}
+                </div>
+              </Image.PreviewGroup>
+            ) : null}
+            <div style={{display: 'flex', gap: 8, flexWrap: 'wrap'}}>
+              <Tag color="blue">{formatRecordTopic(selectedDetail.topic, selectedDetail.dayCount)}</Tag>
+              <Tag>{formatDetailDate(selectedDetail.checkinDate, isEn)}</Tag>
+              {selectedDetail.dayCount ? <Tag>{isEn ? `Day ${selectedDetail.dayCount}` : `第 ${selectedDetail.dayCount} 天`}</Tag> : null}
+              <Tag>{selectedDetail.model}</Tag>
+            </div>
+            <div style={{whiteSpace: 'pre-wrap', lineHeight: 1.8, color: '#334155'}}>
+              {selectedDetail.content}
+            </div>
+            {selectedDetail.tags.length > 0 ? (
+              <div style={{display: 'flex', gap: 6, flexWrap: 'wrap'}}>
+                {selectedDetail.tags.map((tag) => <Tag key={tag}>#{tag}</Tag>)}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+      </Modal>
     </div>
   );
 }
