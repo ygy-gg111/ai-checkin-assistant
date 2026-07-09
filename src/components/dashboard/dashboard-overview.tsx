@@ -86,12 +86,25 @@ export function DashboardOverview() {
   const formattedDate = useMemo(() => {
     const now = new Date();
     try {
-      const options: Intl.DateTimeFormatOptions = {weekday: 'long', month: 'short', day: '2-digit'};
-      return now.toLocaleDateString(undefined, options).toUpperCase().replace(',', ' ·');
+      const formatter = new Intl.DateTimeFormat(isEn ? 'en-US' : 'zh-CN', {
+        weekday: 'long',
+        month: 'short',
+        day: '2-digit',
+      });
+      const parts = formatter.formatToParts(now);
+      const weekday = parts.find((part) => part.type === 'weekday')?.value ?? '';
+      const month = parts.find((part) => part.type === 'month')?.value ?? '';
+      const day = parts.find((part) => part.type === 'day')?.value ?? '';
+
+      if (isEn) {
+        return `${weekday.toUpperCase()} · ${month.toUpperCase()} ${day}`;
+      }
+
+      return `${month}${day}日${weekday}`;
     } catch {
       return 'TODAY';
     }
-  }, []);
+  }, [isEn]);
 
   useEffect(() => {
     if (status === 'loading' || !isAuthenticated) {
@@ -115,7 +128,7 @@ export function DashboardOverview() {
         if (error instanceof DOMException && error.name === 'AbortError') {
           return;
         }
-        message.error(isEn ? 'Failed to load dashboard' : '首页数据加载失败');
+        message.error(isEn ? 'Failed to load dashboard' : '棣栭〉鏁版嵁鍔犺浇澶辫触');
       }
     }
 
@@ -148,14 +161,14 @@ export function DashboardOverview() {
       await navigator.clipboard.writeText(text);
       message.success(t('copied'));
     } catch {
-      message.error(isEn ? 'Failed to copy' : '复制失败');
+      message.error(isEn ? 'Failed to copy' : '澶嶅埗澶辫触');
     }
   };
 
   const weeklyLabel = formatWeekRange(weekDays, locale);
   const usageDetail = isEn
-    ? `${formatTokenCount(usage.totalTokens)} tokens used · Est. cost RMB ${usage.estimatedCostCny.toFixed(2)}`
-    : `已使用 ${formatTokenCount(usage.totalTokens)} tokens · 预计成本 ¥${usage.estimatedCostCny.toFixed(2)}`;
+    ? `${formatTokenCount(usage.totalTokens)} tokens used 路 Est. cost RMB ${usage.estimatedCostCny.toFixed(2)}`
+    : `宸蹭娇鐢?${formatTokenCount(usage.totalTokens)} tokens 路 棰勮鎴愭湰 楼${usage.estimatedCostCny.toFixed(2)}`;
 
   return (
     <div style={{display: 'flex', flexDirection: 'column', gap: 20}}>
@@ -232,7 +245,7 @@ export function DashboardOverview() {
               {stats.generatedCount} <small>{t('postUnit')}</small>
             </div>
             <div className="dashboard-stat-delta" style={{color: '#8b5cf6'}}>
-              {isEn ? 'Generated this month' : '本月生成'}
+              {isEn ? 'Generated this month' : '鏈湀鐢熸垚'}
             </div>
           </Card>
         </Col>
@@ -247,7 +260,7 @@ export function DashboardOverview() {
               {formatTopicLabel(stats.currentTopic, isEn)}
             </div>
             <div className="dashboard-stat-delta" style={{color: '#059669'}}>
-              {stats.currentTopicDayCount ? `${t('dayLabel')} ${stats.currentTopicDayCount} · ${isEn ? 'In progress' : '持续进行中'}` : t('topicDelta')}
+              {stats.currentTopicDayCount ? `${t('dayLabel')} ${stats.currentTopicDayCount} 路 ${isEn ? 'In progress' : '鎸佺画杩涜涓?'}` : t('topicDelta')}
             </div>
           </Card>
         </Col>
@@ -300,7 +313,7 @@ export function DashboardOverview() {
                         {formatTopicLabel(topicKey, isEn)}
                       </span>
                       <span>{formatRecordTime(post, isEn)}</span>
-                      {post.dayCount ? <span>· {t('dayLabel')} {post.dayCount}</span> : null}
+                      {post.dayCount ? <span>路 {t('dayLabel')} {post.dayCount}</span> : null}
                     </div>
                   </div>
                   <Button
@@ -366,13 +379,13 @@ export function DashboardOverview() {
 function formatTopicLabel(topic: string, isEn: boolean) {
   switch (topic) {
     case 'swimming':
-      return isEn ? 'Swimming' : '游泳';
+      return isEn ? 'Swimming' : '娓告吵';
     case 'running':
-      return isEn ? 'Running' : '跑步';
+      return isEn ? 'Running' : '璺戞';
     case 'study':
-      return isEn ? 'Study' : '学习';
+      return isEn ? 'Study' : '瀛︿範';
     default:
-      return isEn ? 'Daily' : '日常';
+      return isEn ? 'Daily' : '鏃ュ父';
   }
 }
 

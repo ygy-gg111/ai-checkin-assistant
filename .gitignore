@@ -21,6 +21,10 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+call-test.log
+dev-server*.log
+ps-*.log
+start-process-test.log
 
 # misc
 .DS_Store
