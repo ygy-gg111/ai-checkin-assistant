@@ -4,6 +4,7 @@ import {ApiError} from '@/lib/api-handler';
 import {withAuth} from '@/lib/auth/guard';
 import {apiSuccess} from '@/lib/api-response';
 import {prisma} from '@/lib/db';
+import {midnightInTz} from '@/lib/timezone';
 import {formatPostListItem} from '@/lib/posts/format';
 
 export const GET = withAuth(async (req: NextRequest, _context, session) => {
@@ -16,8 +17,8 @@ export const GET = withAuth(async (req: NextRequest, _context, session) => {
     }
 
     const [year, month, day] = date.split('-').map(Number);
-    const startDate = new Date(year, month - 1, day);
-    const endDate = new Date(year, month - 1, day + 1);
+    const startDate = midnightInTz(year, month, day);
+    const endDate = new Date(startDate.getTime() + 86_400_000); // +1 day
     const posts = await prisma.post.findMany({
       where: {
         userId: session.user.id,

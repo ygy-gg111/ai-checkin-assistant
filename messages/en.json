@@ -64,6 +64,8 @@
     "sun": "S"
   },
   "Pages": {
+    "dashboardTitle": "Dashboard",
+    "dashboardDescription": "Review recent check-ins, stats and AI usage.",
     "createTitle": "Create check-in",
     "createDescription": "Upload photos, add a short note and generate a social post.",
     "calendarTitle": "Check-in calendar",

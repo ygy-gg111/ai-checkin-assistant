@@ -3,7 +3,12 @@ import {NextRequest} from 'next/server';
 import {ApiError, withApiHandler} from '@/lib/api-handler';
 import {apiSuccess} from '@/lib/api-response';
 import {verifyPassword} from '@/lib/auth/password';
-import {assertLoginAllowed, clearLoginFailures, recordLoginFailure} from '@/lib/auth/rate-limit';
+import {
+  assertLoginAllowed,
+  assertRequestRateLimit,
+  clearLoginFailures,
+  recordLoginFailure,
+} from '@/lib/auth/rate-limit';
 import {AUTH_COOKIE_NAME, AUTH_COOKIE_OPTIONS, signJwt} from '@/lib/auth/session';
 import {prisma} from '@/lib/db';
 
@@ -13,6 +18,12 @@ type LoginBody = {
 };
 
 export const POST = withApiHandler(async (req: NextRequest) => {
+  assertRequestRateLimit(req, {
+    bucket: 'auth-login',
+    max: 12,
+    windowMs: 15 * 60 * 1000,
+  });
+
   const body = await req.json().catch(() => null) as LoginBody | null;
   if (!body) {
     throw new ApiError('BAD_REQUEST', '请求内容必须是有效的 JSON');

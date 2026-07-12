@@ -14,6 +14,7 @@ model User {
   name         String?      @db.VarChar(100)
   avatar       String?      @db.VarChar(2048)
   posts        Post[]
+  promptTemplates PromptTemplate[]
   setting      UserSetting?
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
@@ -85,17 +86,20 @@ model PostImage {
 }
 
 model PromptTemplate {
-  id        String   @id @default(cuid())
-  name      String   @db.VarChar(100)
-  scene     String   @db.VarChar(50)
-  version   String   @default("1.0") @db.VarChar(20)
-  content   String   @db.Text
-  isActive  Boolean  @default(true)
-  posts     Post[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String   @id @default(cuid())
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  templateKey String   @unique @db.VarChar(191)
+  name        String   @db.VarChar(100)
+  scene       String   @db.VarChar(50)
+  version     String   @default("1.0") @db.VarChar(20)
+  content     String   @db.Text
+  isActive    Boolean  @default(true)
+  posts       Post[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  @@unique([scene, version])
+  @@index([userId, scene, isActive])
   @@index([scene, isActive])
 }
 

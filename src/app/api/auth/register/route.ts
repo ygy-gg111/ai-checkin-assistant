@@ -2,6 +2,7 @@ import {NextRequest} from 'next/server';
 
 import {ApiError, withApiHandler} from '@/lib/api-handler';
 import {apiSuccess} from '@/lib/api-response';
+import {assertRequestRateLimit} from '@/lib/auth/rate-limit';
 import {hashPassword} from '@/lib/auth/password';
 import {prisma} from '@/lib/db';
 
@@ -16,6 +17,12 @@ type RegisterBody = {
 };
 
 export const POST = withApiHandler(async (req: NextRequest) => {
+  assertRequestRateLimit(req, {
+    bucket: 'auth-register',
+    max: 5,
+    windowMs: 15 * 60 * 1000,
+  });
+
   const body = await req.json().catch(() => null) as RegisterBody | null;
 
   if (!body) {

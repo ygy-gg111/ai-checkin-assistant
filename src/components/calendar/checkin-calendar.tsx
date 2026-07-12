@@ -16,6 +16,7 @@ import {useEffect, useState} from 'react';
 
 import {GuestEmptyState} from '@/components/auth/guest-empty-state';
 import {useAuth} from '@/hooks/use-auth';
+import {formatTagText, useCopyGeneratedContent} from '@/hooks/use-copy-generated-content';
 import {useRouter} from '@/i18n/navigation';
 
 interface RecordItem {
@@ -71,6 +72,7 @@ interface RecordDetail {
   title: string;
   content: string;
   tags: string[];
+  coverText?: string | null;
   model: string;
   checkinDate: string;
   images: {
@@ -87,6 +89,7 @@ export function CheckinCalendar() {
   const isEn = locale === 'en';
   const {isAuthenticated, status} = useAuth();
   const {message} = App.useApp();
+  const copyGeneratedContent = useCopyGeneratedContent();
 
   const initialDate = new Date();
   const [selectedDayNum, setSelectedDayNum] = useState<number>(initialDate.getDate());
@@ -316,12 +319,12 @@ export function CheckinCalendar() {
       return;
     }
 
-    try {
-      await navigator.clipboard.writeText(selectedDetail.content);
-      message.success(isEn ? 'Copied to clipboard!' : '已复制文案');
-    } catch {
-      message.error(isEn ? 'Failed to copy' : '复制失败');
-    }
+    await copyGeneratedContent({
+      title: selectedDetail.title,
+      content: selectedDetail.content,
+      tags: selectedDetail.tags,
+      coverText: selectedDetail.coverText,
+    });
   };
 
   return (
@@ -542,7 +545,7 @@ export function CheckinCalendar() {
             </div>
             {selectedDetail.tags.length > 0 ? (
               <div style={{display: 'flex', gap: 6, flexWrap: 'wrap'}}>
-                {selectedDetail.tags.map((tag) => <Tag key={tag}>#{tag}</Tag>)}
+                {selectedDetail.tags.map((tag) => <Tag key={tag} color="blue">{formatTagText(tag)}</Tag>)}
               </div>
             ) : null}
           </div>

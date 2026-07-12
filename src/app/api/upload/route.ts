@@ -5,19 +5,26 @@ import path from 'path';
 
 import {ApiError} from '@/lib/api-handler';
 import {withAuth} from '@/lib/auth/guard';
+import {assertUserRateLimit} from '@/lib/auth/rate-limit';
 import {apiSuccess} from '@/lib/api-response';
+import {assertImageSignature, assertUploadMetadata, MAX_UPLOAD_FILES, readImageDimensions} from '@/lib/storage/image-validation';
+import {isR2StorageEnabled} from '@/lib/storage/r2';
 import {getUploadRoot} from '@/lib/storage/uploads';
+import {formatDateTz} from '@/lib/timezone';
 
 export const runtime = 'nodejs';
 
-const MAX_FILE_SIZE = 10 * 1024 * 1024;
-const ALLOWED_IMAGE_TYPES = new Map([
-  ['image/jpeg', 'jpg'],
-  ['image/png', 'png'],
-  ['image/webp', 'webp'],
-]);
+export const POST = withAuth(async (req: NextRequest, _context, session) => {
+    if (isR2StorageEnabled()) {
+      throw new ApiError('SERVICE_UNAVAILABLE', '当前环境已启用云端存储，请使用 /api/upload/presign 接口');
+    }
 
-export const POST = withAuth(async (req: NextRequest) => {
+    assertUserRateLimit(session.user.id, {
+      bucket: 'upload',
+      max: 40,
+      windowMs: 15 * 60 * 1000,
+    });
+
     const formData = await req.formData();
     const files = formData.getAll('files').filter(isUploadFile);
 
@@ -33,28 +40,24 @@ export const POST = withAuth(async (req: NextRequest) => {
       throw new ApiError('VALIDATION_ERROR', '请至少选择一张要上传的图片');
     }
 
-    if (files.length > 9) {
+    if (files.length > MAX_UPLOAD_FILES) {
       throw new ApiError('VALIDATION_ERROR', '最多支持同时上传 9 张图片');
     }
 
     const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const todayKey = formatDateTz(now); // YYYY-MM-DD in Shanghai
+    const [year, month] = todayKey.split('-');
     const uploadRoot = getUploadRoot();
     const targetDir = path.join(uploadRoot, String(year), month);
     await mkdir(targetDir, {recursive: true});
 
     const images = [];
     for (const file of files) {
-      const ext = ALLOWED_IMAGE_TYPES.get(file.type);
-      if (!ext) {
-        throw new ApiError('VALIDATION_ERROR', '仅支持 JPG、PNG、WebP 图片');
-      }
-      if (file.size > MAX_FILE_SIZE) {
-        throw new ApiError('PAYLOAD_TOO_LARGE', '单张图片不能超过 10MB');
-      }
+      const ext = assertUploadMetadata({type: file.type, size: file.size});
 
       const bytes = Buffer.from(await file.arrayBuffer());
+      assertImageSignature(bytes, file.type);
+
       const dimensions = readImageDimensions(bytes, file.type);
       const uniqueName = `${Date.now()}-${randomUUID()}.${ext}`;
       await writeFile(path.join(targetDir, uniqueName), bytes);
@@ -74,53 +77,4 @@ export const POST = withAuth(async (req: NextRequest) => {
 
 function isUploadFile(value: FormDataEntryValue | null): value is File {
   return value instanceof File && value.size > 0;
-}
-
-function readImageDimensions(bytes: Buffer, mimeType: string) {
-  if (mimeType === 'image/png' && bytes.length >= 24) {
-    return {
-      width: bytes.readUInt32BE(16),
-      height: bytes.readUInt32BE(20),
-    };
-  }
-
-  if (mimeType === 'image/jpeg') {
-    const dimensions = readJpegDimensions(bytes);
-    if (dimensions) {
-      return {
-        width: dimensions.width,
-        height: dimensions.height,
-      };
-    }
-  }
-
-  return {
-    width: null,
-    height: null,
-  };
-}
-
-function readJpegDimensions(bytes: Buffer) {
-  let offset = 2;
-
-  while (offset < bytes.length) {
-    if (bytes[offset] !== 0xff) {
-      return null;
-    }
-
-    const marker = bytes[offset + 1];
-    const size = bytes.readUInt16BE(offset + 2);
-    const isStartOfFrame = marker >= 0xc0 && marker <= 0xcf && ![0xc4, 0xc8, 0xcc].includes(marker);
-
-    if (isStartOfFrame) {
-      return {
-        height: bytes.readUInt16BE(offset + 5),
-        width: bytes.readUInt16BE(offset + 7),
-      };
-    }
-
-    offset += 2 + size;
-  }
-
-  return null;
 }

@@ -2,6 +2,7 @@ import {NextRequest} from 'next/server';
 
 import {ApiError} from '@/lib/api-handler';
 import {withAuth} from '@/lib/auth/guard';
+import {assertUserRateLimit} from '@/lib/auth/rate-limit';
 import {getAIProvider} from '@/lib/ai';
 import {apiSuccess} from '@/lib/api-response';
 import {
@@ -14,7 +15,18 @@ import {
 
 const SCENES = ['swimming', 'running', 'study', 'daily'] as const;
 
-export const POST = withAuth(async (req: NextRequest) => {
+export const POST = withAuth(async (req: NextRequest, _context, session) => {
+  assertUserRateLimit(session.user.id, {
+    bucket: 'ai-content-burst',
+    max: 5,
+    windowMs: 5 * 60 * 1000,
+  });
+  assertUserRateLimit(session.user.id, {
+    bucket: 'ai-content-hour',
+    max: 20,
+    windowMs: 60 * 60 * 1000,
+  });
+
   const body = await req.json().catch(() => null) as {
     scene?: unknown;
     persona?: unknown;

@@ -60,7 +60,7 @@ body {
   border-radius: 16px !important;
   border: 1px solid var(--app-border) !important;
   box-shadow: 0 2px 10px rgba(15,23,42,.03) !important;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .dashboard-stat-card:hover {
   transform: translateY(-2px);
@@ -186,7 +186,7 @@ body {
   border-color: var(--app-border) !important;
   font-weight: 600 !important;
   font-size: 13px !important;
-  transition: all 0.2s ease !important;
+  transition: color 0.2s ease, border-color 0.2s ease !important;
 }
 .dashboard-record-copy-btn:hover {
   color: var(--app-primary) !important;
@@ -216,7 +216,7 @@ body {
   font-size: 12px;
   font-weight: 600;
   user-select: none;
-  transition: all 0.2s ease;
+  transition: color 0.2s ease, border-color 0.2s ease, background-color 0.2s ease;
 }
 .dashboard-day-cell.done {
   background: #eff6ff;
@@ -359,11 +359,22 @@ body {
   display: flex;
   flex-direction: column;
   gap: 11px;
-  overflow: hidden;
+  overflow-y: auto;
   flex: 1;
   min-height: 0;
   scrollbar-width: thin;
-  scrollbar-color: #e2e8f0 transparent;
+  scrollbar-color: #cbd5e1 transparent;
+  padding-right: 16px;
+}
+.create-form::-webkit-scrollbar {
+  width: 4px;
+}
+.create-form::-webkit-scrollbar-track {
+  background: transparent;
+}
+.create-form::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 999px;
 }
 
 .create-field {
@@ -526,7 +537,7 @@ body {
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
   font-family: inherit;
 }
 .create-chip:hover {
@@ -619,11 +630,22 @@ body {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  overflow: hidden;
+  overflow-y: auto;
   flex: 1;
   min-height: 0;
   scrollbar-width: thin;
-  scrollbar-color: #e2e8f0 transparent;
+  scrollbar-color: #cbd5e1 transparent;
+  padding-right: 16px;
+}
+.create-preview-body::-webkit-scrollbar {
+  width: 4px;
+}
+.create-preview-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+.create-preview-body::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 999px;
 }
 
 /* AI State Banner */
@@ -728,6 +750,14 @@ body {
   box-shadow: 0 4px 12px rgba(15,23,42,.06);
 }
 
+.create-result-title {
+  margin: 0 !important;
+  color: #111827 !important;
+  font-size: 19px !important;
+  font-weight: 800 !important;
+  line-height: 1.38 !important;
+}
+
 .create-block-title {
   display: flex;
   justify-content: space-between;
@@ -745,12 +775,17 @@ body {
 }
 
 .create-tag {
-  padding: 4px 8px;
-  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 4px 10px;
+  border: 1px solid #bfdbfe;
+  border-radius: 999px;
   background: #eff6ff;
   color: #2563eb;
-  font-size: 11px;
-  font-weight: 600;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
 }
 
 /* Cover text preview */
@@ -810,7 +845,7 @@ body {
   font-weight: 650 !important;
   height: 40px !important;
   padding: 0 16px !important;
-  transition: all 0.2s ease !important;
+  transition: color 0.2s ease, border-color 0.2s ease !important;
 }
 .create-footer-btn:hover {
   color: #2563eb !important;
@@ -826,7 +861,7 @@ body {
   box-shadow: 0 8px 16px rgba(37,99,235,0.25) !important;
   background: #2563eb !important;
   border: none !important;
-  transition: all 0.2s ease !important;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease !important;
 }
 .create-footer-primary:hover {
   background: #1d4ed8 !important;
@@ -967,7 +1002,7 @@ body {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
   color: var(--app-text);
 }
 .calendar-arrow-btn:hover {
@@ -1238,7 +1273,7 @@ body {
   font-weight: 600 !important;
   font-size: 12.5px !important;
   height: auto !important;
-  transition: all 0.2s ease !important;
+  transition: color 0.2s ease, border-color 0.2s ease !important;
 }
 .calendar-record-view-btn:hover {
   border-color: var(--app-primary) !important;
@@ -1258,7 +1293,7 @@ body {
   height: auto !important;
   box-shadow: 0 6px 12px rgba(37,99,235,0.2) !important;
   cursor: pointer;
-  transition: all 0.2s ease !important;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease !important;
 }
 .calendar-add-btn:hover {
   background: #1d4ed8 !important;
@@ -1339,9 +1374,12 @@ body {
 .history-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 280px;
+  grid-template-rows: auto minmax(0, 1fr);
   gap: 20px;
+  height: calc(100vh - 128px);
   max-width: 1160px;
   margin: 0 auto;
+  overflow: hidden;
 }
 
 .history-filter {
@@ -1403,7 +1441,7 @@ body {
   font-weight: 650 !important;
   font-size: 13px !important;
   height: 38px !important;
-  transition: all 0.2s ease !important;
+  transition: color 0.2s ease, border-color 0.2s ease !important;
 }
 .history-btn-reset:hover {
   border-color: var(--app-primary) !important;
@@ -1417,6 +1455,38 @@ body {
   box-shadow: 0 2px 12px rgba(15,23,42,.02);
   overflow: hidden;
   height: fit-content;
+}
+
+.history-list-card {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.history-list-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+
+.history-list-scroll::-webkit-scrollbar,
+.history-side-panel::-webkit-scrollbar {
+  width: 5px;
+}
+
+.history-list-scroll::-webkit-scrollbar-track,
+.history-side-panel::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.history-list-scroll::-webkit-scrollbar-thumb,
+.history-side-panel::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 999px;
 }
 
 .history-table-head {
@@ -1527,7 +1597,7 @@ body {
   justify-content: center;
   padding: 0 !important;
   font-size: 12px !important;
-  transition: all 0.2s ease !important;
+  transition: color 0.2s ease, border-color 0.2s ease !important;
 }
 .history-mini-btn:hover {
   border-color: var(--app-primary) !important;
@@ -1563,7 +1633,7 @@ body {
   padding: 0 !important;
   font-weight: 600 !important;
   font-size: 12.5px !important;
-  transition: all 0.2s ease !important;
+  transition: color 0.2s ease, border-color 0.2s ease !important;
 }
 .history-page-btn:hover:not(.active) {
   border-color: var(--app-primary) !important;
@@ -1579,6 +1649,10 @@ body {
   display: grid;
   gap: 16px;
   align-content: start;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 2px;
 }
 
 .history-card-head {
@@ -1776,7 +1850,7 @@ body {
   text-align: left;
   color: #64748b !important;
   cursor: pointer;
-  transition: all 0.2s ease !important;
+  transition: color 0.2s ease, background-color 0.2s ease !important;
   height: auto !important;
 }
 .prompt-template-btn:hover:not(.active) {
@@ -1797,7 +1871,7 @@ body {
   font-size: 14px;
   font-weight: 700;
   flex-shrink: 0;
-  transition: all 0.2s ease;
+  transition: color 0.2s ease, background-color 0.2s ease;
 }
 .prompt-template-btn.active .prompt-template-icon {
   background: #dbeafe;
@@ -1827,7 +1901,7 @@ body {
   font-size: 12.5px !important;
   height: auto !important;
   cursor: pointer;
-  transition: all 0.2s ease !important;
+  transition: color 0.2s ease, border-color 0.2s ease, background-color 0.2s ease !important;
 }
 .prompt-new-btn:hover {
   border-color: var(--app-primary) !important;
@@ -2232,7 +2306,7 @@ body {
   color: #475569 !important;
   height: auto !important;
   font-size: 13px !important;
-  transition: all 0.2s ease !important;
+  transition: color 0.2s ease, border-color 0.2s ease !important;
 }
 .profile-edit-btn:hover {
   border-color: var(--app-primary) !important;
@@ -2467,7 +2541,7 @@ body {
   font-weight: 700 !important;
   height: auto !important;
   font-size: 13px !important;
-  transition: all 0.2s ease !important;
+  transition: color 0.2s ease, border-color 0.2s ease, background-color 0.2s ease !important;
 }
 .profile-logout-btn:hover {
   background: #fef2f2 !important;
@@ -2685,7 +2759,7 @@ body {
   height: 40px !important;
   padding: 4px 12px 4px 4px !important;
   border-radius: 20px !important;
-  transition: all 0.2s ease !important;
+  transition: background-color 0.2s ease !important;
 }
 .auth-user-btn:hover {
   background: #f1f5f9 !important;
@@ -2778,7 +2852,7 @@ body {
   background: linear-gradient(135deg, #2563eb, #4f46e5) !important;
   border: none !important;
   box-shadow: 0 6px 16px rgba(37, 99, 235, 0.2) !important;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.25s cubic-bezier(0.4, 0, 0.2, 1), background 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
   display: inline-flex !important;
   align-items: center !important;
   gap: 6px !important;
@@ -2804,7 +2878,7 @@ body {
   color: var(--app-primary) !important;
   background: rgba(37, 99, 235, 0.05) !important;
   border: 1px solid rgba(37, 99, 235, 0.15) !important;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.25s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.25s cubic-bezier(0.4, 0, 0.2, 1), color 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
   display: inline-flex !important;
   align-items: center !important;
 }

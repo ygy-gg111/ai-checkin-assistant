@@ -15,6 +15,7 @@ import {useEffect, useState} from 'react';
 
 import {GuestEmptyState} from '@/components/auth/guest-empty-state';
 import {useAuth} from '@/hooks/use-auth';
+import {formatTagText, useCopyGeneratedContent} from '@/hooks/use-copy-generated-content';
 
 const {Option} = Select;
 
@@ -88,6 +89,7 @@ export function HistoryRecords() {
   const {message} = App.useApp();
   const isEn = locale === 'en';
   const {isAuthenticated, status} = useAuth();
+  const copyGeneratedContent = useCopyGeneratedContent();
 
   // Filters State
   const [searchQuery, setSearchQuery] = useState('');
@@ -227,15 +229,6 @@ export function HistoryRecords() {
     message.info(t('reset'));
   };
 
-  const handleCopy = async (text: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      message.success(isEn ? 'Copied to clipboard!' : '已复制文案！');
-    } catch {
-      message.error(isEn ? 'Failed to copy' : '复制失败');
-    }
-  };
-
   const loadDetail = async (id: string, shouldOpen = true) => {
     setDetailLoading(true);
     try {
@@ -260,7 +253,7 @@ export function HistoryRecords() {
 
   const handleCopyRecord = async (record: HistoryItem) => {
     const detail = await loadDetail(record.id, false);
-    await handleCopy(detail?.content ?? record.content ?? record.contentPreview ?? record.preview ?? record.title);
+    await copyGeneratedContent(detail ? toGeneratedCopyContent(detail) : toGeneratedCopyContent(record));
   };
 
   const handleDelete = async (id: string) => {
@@ -382,7 +375,7 @@ export function HistoryRecords() {
       </section>
 
       {/* ── Table Card ── */}
-      <section className="history-table-card">
+      <section className="history-table-card history-list-card">
         <div className="history-table-head">
           <span>{t('tableHeadContent')}</span>
           <span>{t('tableHeadTopic')}</span>
@@ -390,6 +383,7 @@ export function HistoryRecords() {
           <span>{t('tableHeadActions')}</span>
         </div>
 
+        <div className="history-list-scroll">
         {records.length > 0 ? (
           records.map((rec, index) => (
             <article key={rec.id} className="history-item">
@@ -492,6 +486,7 @@ export function HistoryRecords() {
               : (isEn ? 'No matching records found' : '没有找到匹配的记录')}
           </div>
         )}
+        </div>
 
         {/* Pagination */}
         <div className="history-pagination">
@@ -583,7 +578,7 @@ export function HistoryRecords() {
           >
             {regeneratingId === selectedDetail?.id ? t('regenerating') : t('regenerate')}
           </Button>,
-          <Button key="copy" type="primary" onClick={() => selectedDetail && void handleCopy(selectedDetail.content)}>
+          <Button key="copy" type="primary" onClick={() => selectedDetail && void copyGeneratedContent(toGeneratedCopyContent(selectedDetail))}>
             {t('copy')}
           </Button>,
           <Button key="close" onClick={() => setDetailOpen(false)}>
@@ -621,7 +616,7 @@ export function HistoryRecords() {
             </div>
             {selectedDetail.tags.length > 0 ? (
               <div style={{display: 'flex', gap: 6, flexWrap: 'wrap'}}>
-                {selectedDetail.tags.map((tag) => <Tag key={tag}>#{tag}</Tag>)}
+                {selectedDetail.tags.map((tag) => <Tag key={tag} color="blue">{formatTagText(tag)}</Tag>)}
               </div>
             ) : null}
           </div>
@@ -644,6 +639,15 @@ function getTopicColor(topic: string) {
     default:
       return '#64748b';
   }
+}
+
+function toGeneratedCopyContent(record: HistoryItem | HistoryDetail) {
+  return {
+    title: record.title,
+    content: record.content ?? record.contentPreview ?? record.preview ?? '',
+    tags: record.tags,
+    coverText: 'coverText' in record ? record.coverText : null,
+  };
 }
 
 function formatDetailDate(detail: HistoryDetail, isEn: boolean) {

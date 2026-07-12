@@ -7,9 +7,10 @@ import {
 import {App, Button, Card, Col, Image, Input, Row, Select, Space, Typography} from 'antd';
 import type {UploadFile} from 'antd';
 import {useLocale, useTranslations} from 'next-intl';
-import {useEffect, useMemo, useRef, useState} from 'react';
+import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 
 import {useAuth} from '@/hooks/use-auth';
+import {formatTagText, useCopyGeneratedContent} from '@/hooks/use-copy-generated-content';
 import {
   MAX_PROMPT_COMPLETION_TOKENS,
   MAX_PROMPT_IMAGE_URLS,
@@ -40,13 +41,23 @@ interface UploadedImage {
   filename: string;
 }
 
+interface R2UploadTarget {
+  key: string;
+  uploadUrl: string;
+  filename: string;
+}
+
 interface PromptTemplate {
   id: string;
+  userId?: string | null;
+  isSystem?: boolean;
   name: string;
   scene: Topic;
   version: string;
   content: string;
   isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 const TOPICS: {key: Topic; labelKey: TopicLabelKey; color: string}[] = [
@@ -63,6 +74,13 @@ const STYLES: {key: Style; labelKey: StyleLabelKey}[] = [
   {key: 'minimal', labelKey: 'styleMinimal'},
 ];
 
+const COVER_GRADIENTS = [
+  'linear-gradient(145deg, #93c5fd, #c4b5fd)',
+  'linear-gradient(145deg, #bae6fd, #6ee7b7)',
+  'linear-gradient(145deg, #fdba74, #fda4af)',
+  'linear-gradient(145deg, #86efac, #67e8f9)',
+];
+
 export function CreateCheckin() {
   const t = useTranslations('Create');
   const tAuth = useTranslations('Auth');
@@ -70,6 +88,10 @@ export function CreateCheckin() {
   const {message} = App.useApp();
   const {isAuthenticated, status, openAuthModal} = useAuth();
   const isEn = locale === 'en';
+  const copyGeneratedContent = useCopyGeneratedContent({
+    successMessage: t('copied'),
+    errorMessage: t('copyFailed'),
+  });
 
   const [fileList, setFileList] = useState<UploadFile[]>([]);
   const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>([]);
@@ -90,11 +112,25 @@ export function CreateCheckin() {
 
   const descLength = description.length;
   const currentPromptTemplates = useMemo(
-    () => promptTemplates.filter((template) => template.scene === topic),
+    () => promptTemplates
+      .filter((template) => template.scene === topic)
+      .sort((left, right) => {
+        const leftIsSystem = left.isSystem ?? left.userId == null;
+        const rightIsSystem = right.isSystem ?? right.userId == null;
+        if (leftIsSystem !== rightIsSystem) {
+          return leftIsSystem ? 1 : -1;
+        }
+
+        const leftUpdatedAt = left.updatedAt ? new Date(left.updatedAt).getTime() : 0;
+        const rightUpdatedAt = right.updatedAt ? new Date(right.updatedAt).getTime() : 0;
+        return rightUpdatedAt - leftUpdatedAt;
+      }),
     [promptTemplates, topic]
   );
-  const selectedPromptTemplate = currentPromptTemplates.find((template) => template.id === selectedPromptTemplateId)
-    ?? currentPromptTemplates[0];
+  const selectedPromptTemplate = useMemo(
+    () => currentPromptTemplates.find((template) => template.id === selectedPromptTemplateId) ?? currentPromptTemplates[0],
+    [currentPromptTemplates, selectedPromptTemplateId]
+  );
   const effectivePromptTemplateId = selectedPromptTemplate?.id;
 
   useEffect(() => {
@@ -215,16 +251,10 @@ export function CreateCheckin() {
 
   const handleCopyAll = async () => {
     if (!result) return;
-    const text = `${result.title}\n\n${result.content}\n\n${result.tags.join(' ')}`;
-    try {
-      await navigator.clipboard.writeText(text);
-      message.success(t('copied'));
-    } catch {
-      message.error(t('copyFailed'));
-    }
+    await copyGeneratedContent(result);
   };
 
-  const handleRemoveImage = (uid: string) => {
+  const handleRemoveImage = useCallback((uid: string) => {
     const removed = fileList.find((file) => file.uid === uid);
     const nextFileList = fileList.filter((f) => f.uid !== uid);
     setFileList(nextFileList);
@@ -234,9 +264,9 @@ export function CreateCheckin() {
         setActivePreviewUrl(nextFileList[0]?.url ?? null);
       }
     }
-  };
+  }, [activePreviewUrl, fileList]);
 
-  const handleUploadFiles = async (files: File[]) => {
+  const handleUploadFiles = useCallback(async (files: File[]) => {
     if (files.length === 0) {
       return;
     }
@@ -245,22 +275,72 @@ export function CreateCheckin() {
       return;
     }
 
-    const formData = new FormData();
-    files.forEach((file) => formData.append('files', file));
-
     setIsUploading(true);
     try {
-      const response = await fetch('/api/upload', {
+      const presignResponse = await fetch('/api/upload/presign', {
         method: 'POST',
-        body: formData,
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          files: files.map((file) => ({name: file.name, type: file.type, size: file.size})),
+        }),
       });
-      const payload = await response.json() as {
+      const presignPayload = await presignResponse.json() as {
+        message?: string;
+        data?: {
+          storage?: 'local' | 'r2';
+          uploads?: R2UploadTarget[];
+        };
+      };
+      if (!presignResponse.ok || !presignPayload.data?.storage) {
+        throw new Error(presignPayload.message || '上传准备失败');
+      }
+
+      let payload: {
         message?: string;
         data?: {
           images?: UploadedImage[];
         };
       };
-      if (!response.ok || !payload.data?.images) {
+
+      if (presignPayload.data.storage === 'r2') {
+        const uploads = presignPayload.data.uploads;
+        if (!uploads || uploads.length !== files.length) {
+          throw new Error('上传签名数据不完整');
+        }
+
+        await Promise.all(uploads.map(async (upload, index) => {
+          const response = await fetch(upload.uploadUrl, {
+            method: 'PUT',
+            headers: {'Content-Type': files[index].type},
+            body: files[index],
+          });
+          if (!response.ok) {
+            throw new Error(`图片直传失败 (${response.status})`);
+          }
+        }));
+
+        const completeResponse = await fetch('/api/upload/complete', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            uploads: uploads.map((upload) => ({key: upload.key, filename: upload.filename})),
+          }),
+        });
+        payload = await completeResponse.json() as typeof payload;
+        if (!completeResponse.ok) {
+          throw new Error(payload.message || '上传校验失败');
+        }
+      } else {
+        const formData = new FormData();
+        files.forEach((file) => formData.append('files', file));
+        const response = await fetch('/api/upload', {method: 'POST', body: formData});
+        payload = await response.json() as typeof payload;
+        if (!response.ok) {
+          throw new Error(payload.message || '上传失败');
+        }
+      }
+
+      if (!payload.data?.images) {
         throw new Error(payload.message || '上传失败');
       }
 
@@ -280,16 +360,13 @@ export function CreateCheckin() {
     } finally {
       setIsUploading(false);
     }
-  };
+  }, [fileList.length, message]);
 
-  // Cover gradient colors per index
-  const coverGradients = [
-    'linear-gradient(145deg, #93c5fd, #c4b5fd)',
-    'linear-gradient(145deg, #bae6fd, #6ee7b7)',
-    'linear-gradient(145deg, #fdba74, #fda4af)',
-    'linear-gradient(145deg, #86efac, #67e8f9)',
-  ];
   const previewImageUrl = activePreviewUrl ?? fileList[0]?.url ?? null;
+  const previewImageIndex = useMemo(
+    () => Math.max(0, fileList.findIndex((file) => file.url === previewImageUrl)),
+    [fileList, previewImageUrl]
+  );
 
   return (
     <>
@@ -352,7 +429,7 @@ export function CreateCheckin() {
                         className={`create-thumb${previewImageUrl === f.url ? ' active' : ''}`}
                         style={f.url
                           ? {backgroundImage: `url(${f.url})`, backgroundSize: 'cover', backgroundPosition: 'center'}
-                          : {background: coverGradients[idx % coverGradients.length]}}
+                          : {background: COVER_GRADIENTS[idx % COVER_GRADIENTS.length]}}
                         onClick={() => setActivePreviewUrl(f.url ?? null)}
                       >
                         <button
@@ -390,9 +467,9 @@ export function CreateCheckin() {
                 value={description}
                 onChange={(e) => setDescription(e.target.value.slice(0, MAX_PROMPT_INPUT_CHARS))}
                 placeholder={t('descPlaceholder')}
-                rows={3}
+                rows={2}
                 maxLength={MAX_PROMPT_INPUT_CHARS}
-                style={{resize: 'none', borderRadius: 12, fontSize: 14}}
+                style={{resize: 'none', borderRadius: 12, fontSize: 13, padding: '6px 10px', height: '54px'}}
               />
               <div className="field-limit-note">
                 <span>{isEn ? `Input cap: ${MAX_PROMPT_INPUT_CHARS} characters.` : `输入上限：${MAX_PROMPT_INPUT_CHARS} 个字符。`}</span>
@@ -424,7 +501,7 @@ export function CreateCheckin() {
                   <label className="create-field-label"><span>{t('dayLabel')}</span></label>
                   <Input
                     className="create-input"
-                    addonBefore="Day"
+                    prefix="Day"
                     value={dayCount}
                     onChange={(e) => {
                       const num = e.target.value.replace(/\D/g, '');
@@ -535,23 +612,25 @@ export function CreateCheckin() {
                     </button>
                   ))}
                 </div>
-                <div style={{display: 'none'}}>
-                  <Image.PreviewGroup
-                    preview={{
-                      visible: previewVisible,
-                      current: Math.max(0, fileList.findIndex((file) => file.url === previewImageUrl)),
-                      onVisibleChange: setPreviewVisible,
-                      onChange: (current) => {
-                        const nextUrl = fileList[current]?.url ?? null;
-                        setActivePreviewUrl(nextUrl);
-                      },
-                    }}
-                  >
-                    {fileList.map((file) => (
-                      <Image key={file.uid} src={file.url} alt={file.name} />
-                    ))}
-                  </Image.PreviewGroup>
-                </div>
+                {previewVisible ? (
+                  <div style={{display: 'none'}}>
+                    <Image.PreviewGroup
+                      preview={{
+                        visible: previewVisible,
+                        current: previewImageIndex,
+                        onVisibleChange: setPreviewVisible,
+                        onChange: (current) => {
+                          const nextUrl = fileList[current]?.url ?? null;
+                          setActivePreviewUrl(nextUrl);
+                        },
+                      }}
+                    >
+                      {fileList.map((file) => (
+                        <Image key={file.uid} src={file.url} alt={file.name} />
+                      ))}
+                    </Image.PreviewGroup>
+                  </div>
+                ) : null}
               </div>
             )}
 
@@ -564,7 +643,7 @@ export function CreateCheckin() {
                     <span>{t('resultTitle')}</span>
                     <span>{result.title.length} {t('charUnit')}</span>
                   </div>
-                  <Title level={5} style={{margin: 0, fontSize: 15, lineHeight: 1.45}}>
+                  <Title level={4} className="create-result-title">
                     {result.title}
                   </Title>
                 </div>
@@ -588,7 +667,7 @@ export function CreateCheckin() {
                   </div>
                   <div className="create-tags">
                     {result.tags.map((tag) => (
-                      <span key={tag} className="create-tag">{tag}</span>
+                      <span key={tag} className="create-tag">{formatTagText(tag)}</span>
                     ))}
                   </div>
                 </div>

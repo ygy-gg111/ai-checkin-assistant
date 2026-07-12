@@ -5,20 +5,25 @@ import {withAuth} from '@/lib/auth/guard';
 import {apiSuccess} from '@/lib/api-response';
 import {calculateStreakStats, toDateKey} from '@/lib/calendar/stats';
 import {prisma} from '@/lib/db';
+import {formatDateTz, midnightInTz} from '@/lib/timezone';
 
 export const GET = withAuth(async (req: NextRequest, _context, session) => {
     const {searchParams} = new URL(req.url);
     const now = new Date();
-    const year = parseInt(searchParams.get('year') || String(now.getFullYear()), 10);
-    const month = parseInt(searchParams.get('month') || String(now.getMonth() + 1), 10);
+    const todayKey = formatDateTz(now); // YYYY-MM-DD in Shanghai
+    const [defaultYear, defaultMonth] = todayKey.split('-').map(Number);
+    const year = parseInt(searchParams.get('year') || String(defaultYear), 10);
+    const month = parseInt(searchParams.get('month') || String(defaultMonth), 10);
     const topic = searchParams.get('topic');
 
     if (isNaN(year) || isNaN(month) || month < 1 || month > 12) {
       throw new ApiError('VALIDATION_ERROR', '年份和月份参数不合法');
     }
 
-    const startDate = new Date(year, month - 1, 1);
-    const endDate = new Date(year, month, 1);
+    const startDate = midnightInTz(year, month, 1);
+    const nextYear = month === 12 ? year + 1 : year;
+    const nextMonth = month === 12 ? 1 : month + 1;
+    const endDate = midnightInTz(nextYear, nextMonth, 1);
     const where = {
       userId: session.user.id,
       status: {not: 'DELETED' as const},

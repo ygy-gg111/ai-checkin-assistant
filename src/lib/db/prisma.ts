@@ -1,4 +1,5 @@
 import {PrismaMariaDb} from '@prisma/adapter-mariadb';
+import {PrismaTiDBCloud} from '@tidbcloud/prisma-adapter';
 
 import {PrismaClient} from '@/generated/prisma/client';
 
@@ -12,7 +13,9 @@ const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
 
-const adapter = new PrismaMariaDb(databaseUrl);
+const adapter = process.env.DATABASE_DRIVER === 'tidb-cloud'
+  ? new PrismaTiDBCloud({url: databaseUrl})
+  : new PrismaMariaDb(databaseUrl);
 
 export const prisma = globalForPrisma.prisma ?? new PrismaClient({adapter});
 

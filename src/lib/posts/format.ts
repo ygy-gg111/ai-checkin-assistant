@@ -1,4 +1,5 @@
 import type {Prisma} from '@/generated/prisma/client';
+import {formatDateTz, formatTimeTz} from '@/lib/timezone';
 
 type PostWithImages = {
   id: string;
@@ -92,9 +93,9 @@ function makePreview(content: string) {
 }
 
 function formatDate(date: Date) {
-  return date.toISOString().slice(0, 10);
+  return formatDateTz(date);
 }
 
 function formatTime(date: Date) {
-  return date.toISOString().slice(11, 16);
+  return formatTimeTz(date);
 }

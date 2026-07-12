@@ -1,4 +1,5 @@
 import {prisma} from '@/lib/db';
+import {formatDateTz, midnightInTz} from '@/lib/timezone';
 
 export interface MonthlyUsageStats {
   monthLabel: string;
@@ -18,8 +19,13 @@ export interface MonthlyUsageStats {
 
 export async function getMonthlyUsageStats(userId: string): Promise<MonthlyUsageStats> {
   const now = new Date();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const nextMonthStart = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  // Use the current date in Asia/Shanghai to determine the calendar month
+  const todayKey = formatDateTz(now); // YYYY-MM-DD in Shanghai
+  const [curYear, curMonth] = todayKey.split('-').map(Number);
+  const monthStart = midnightInTz(curYear, curMonth, 1);
+  const nextYear = curMonth === 12 ? curYear + 1 : curYear;
+  const nextMonth = curMonth === 12 ? 1 : curMonth + 1;
+  const nextMonthStart = midnightInTz(nextYear, nextMonth, 1);
 
   const [postsGenerated, usageLogs] = await Promise.all([
     prisma.post.count({
@@ -57,7 +63,7 @@ export async function getMonthlyUsageStats(userId: string): Promise<MonthlyUsage
   const latestUsage = usageLogs[0];
 
   return {
-    monthLabel: `${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, '0')}`,
+    monthLabel: `${curYear}.${String(curMonth).padStart(2, '0')}`,
     monthlyCalls,
     callLimit,
     callPercent: getPercent(monthlyCalls, callLimit),

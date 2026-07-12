@@ -64,6 +64,8 @@
     "sun": "日"
   },
   "Pages": {
+    "dashboardTitle": "工作台",
+    "dashboardDescription": "查看近期打卡、统计概览和 AI 使用情况。",
     "createTitle": "创建打卡",
     "createDescription": "上传图片、补充描述，并生成小红书文案。",
     "calendarTitle": "打卡日历",

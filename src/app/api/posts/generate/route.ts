@@ -2,10 +2,12 @@ import {NextRequest} from 'next/server';
 
 import {ApiError} from '@/lib/api-handler';
 import {withAuth} from '@/lib/auth/guard';
+import {assertUserRateLimit} from '@/lib/auth/rate-limit';
 import {apiSuccess} from '@/lib/api-response';
 import {getAIProvider} from '@/lib/ai';
 import {prisma} from '@/lib/db';
 import {formatPostDetail} from '@/lib/posts/format';
+import {buildPromptTemplateReadScope} from '@/lib/prompts/templates';
 import {
   clampPromptInputText,
   composePromptTemplate,
@@ -21,6 +23,17 @@ type InputImage = {
 };
 
 export const POST = withAuth(async (req: NextRequest, _context, session) => {
+  assertUserRateLimit(session.user.id, {
+    bucket: 'ai-content-burst',
+    max: 5,
+    windowMs: 5 * 60 * 1000,
+  });
+  assertUserRateLimit(session.user.id, {
+    bucket: 'ai-content-hour',
+    max: 20,
+    windowMs: 60 * 60 * 1000,
+  });
+
   const body = await req.json().catch(() => null);
   if (!body || typeof body !== 'object') {
     throw new ApiError('BAD_REQUEST', '请求内容必须是有效的 JSON');
@@ -54,11 +67,20 @@ export const POST = withAuth(async (req: NextRequest, _context, session) => {
   const [template, userSetting] = await Promise.all([
     prisma.promptTemplate.findFirst({
       where: {
-        isActive: true,
-        scene: normalizedTopic,
-        ...(normalizedPromptTemplateId ? {id: normalizedPromptTemplateId} : {}),
+        AND: [
+          buildPromptTemplateReadScope(session.user.id),
+          {
+            isActive: true,
+            scene: normalizedTopic,
+            ...(normalizedPromptTemplateId ? {id: normalizedPromptTemplateId} : {}),
+          },
+        ],
       },
-      orderBy: {version: 'desc'},
+      orderBy: [
+        {userId: 'desc'},
+        {updatedAt: 'desc'},
+        {version: 'desc'},
+      ],
     }),
     prisma.userSetting.findUnique({
       where: {userId: session.user.id},

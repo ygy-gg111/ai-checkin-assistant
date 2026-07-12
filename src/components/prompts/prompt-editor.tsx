@@ -33,6 +33,8 @@ type TopicType = 'swimming' | 'running' | 'study' | 'daily';
 
 type PromptTemplateRecord = {
   id: string;
+  userId: string | null;
+  isSystem: boolean;
   name: string;
   scene: TopicType;
   version: string;
@@ -657,7 +659,7 @@ export function PromptEditor() {
               </label>
               <Input
                 value={nameDraft}
-                disabled={!selectedTemplate}
+                disabled={!selectedTemplate || isProtectedDefaultTemplate(selectedTemplate)}
                 onChange={(event) => setNameDraft(event.target.value)}
                 maxLength={100}
                 placeholder={isEn ? 'Enter template name' : '请输入模板名称'}
@@ -690,7 +692,7 @@ export function PromptEditor() {
               <TextArea
                 className="prompt-textarea prompt-code"
                 value={promptCode}
-                disabled={!selectedTemplate}
+                disabled={!selectedTemplate || isProtectedDefaultTemplate(selectedTemplate)}
                 onChange={(event) => setPromptCode(event.target.value)}
                 maxLength={MAX_PROMPT_TEMPLATE_CHARS}
                 rows={7}
@@ -785,7 +787,7 @@ export function PromptEditor() {
               <Button className="btn" disabled={!selectedTemplate} onClick={handleRestoreDefault}>
                 {t('restoreDefault')}
               </Button>
-              <Button className="btn" disabled={!selectedTemplate} onClick={() => void handleToggleActive()} loading={isToggling}>
+              <Button className="btn" disabled={!selectedTemplate || isProtectedDefaultTemplate(selectedTemplate)} onClick={() => void handleToggleActive()} loading={isToggling}>
                 {selectedTemplate?.isActive ? (isEn ? 'Disable Template' : '停用模板') : (isEn ? 'Enable Template' : '启用模板')}
               </Button>
               <Button className="btn" disabled={!selectedTemplate} onClick={() => void handleCopyTemplate()}>
@@ -885,7 +887,7 @@ function countTemplateVariables(template: string) {
 }
 
 function isProtectedDefaultTemplate(template: PromptTemplateRecord) {
-  return template.version === '1.0' && TOPICS.includes(template.scene);
+  return template.isSystem || template.userId === null;
 }
 
 function formatUpdatedAt(value: string, isEn: boolean) {

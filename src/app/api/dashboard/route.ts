@@ -5,12 +5,18 @@ import {apiSuccess} from '@/lib/api-response';
 import {calculateStreakStats, toDateKey} from '@/lib/calendar/stats';
 import {prisma} from '@/lib/db';
 import {formatPostListItem} from '@/lib/posts/format';
+import {APP_TIMEZONE, formatDateTz, midnightInTz} from '@/lib/timezone';
 import {getMonthlyUsageStats} from '@/lib/usage/monthly';
 
-export const GET = withAuth(async (_req: NextRequest, _context, session) => {
+export const GET = withAuth(async (req: NextRequest, _context, session) => {
   const now = new Date();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const nextMonthStart = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  const locale = req.nextUrl.searchParams.get('locale') === 'en' ? 'en' : 'zh-CN';
+  const todayKey = formatDateTz(now); // YYYY-MM-DD in Shanghai
+  const [curYear, curMonth] = todayKey.split('-').map(Number);
+  const monthStart = midnightInTz(curYear, curMonth, 1);
+  const nxtYear = curMonth === 12 ? curYear + 1 : curYear;
+  const nxtMonth = curMonth === 12 ? 1 : curMonth + 1;
+  const nextMonthStart = midnightInTz(nxtYear, nxtMonth, 1);
 
   const weekStart = startOfWeek(now);
   const weekDates = Array.from({length: 7}, (_, index) => addDays(weekStart, index));
@@ -101,6 +107,10 @@ export const GET = withAuth(async (_req: NextRequest, _context, session) => {
   });
 
   return apiSuccess({
+    today: {
+      date: toDateKey(now),
+      displayDate: formatDashboardDate(now, locale),
+    },
     stats: {
       streakDays: currentStreak,
       monthlyCheckins,
@@ -128,15 +138,52 @@ export const GET = withAuth(async (_req: NextRequest, _context, session) => {
 });
 
 function startOfWeek(date: Date) {
-  const result = new Date(date);
-  const day = (result.getDay() + 6) % 7;
-  result.setHours(0, 0, 0, 0);
-  result.setDate(result.getDate() - day);
-  return result;
+  // Get the current day of week in Asia/Shanghai timezone
+  const shanghaiDay = new Intl.DateTimeFormat('en-US', {
+    timeZone: APP_TIMEZONE,
+    weekday: 'short',
+  }).format(date);
+  const dayMap: Record<string, number> = {
+    Mon: 0, Tue: 1, Wed: 2, Thu: 3, Fri: 4, Sat: 5, Sun: 6,
+  };
+  const offset = dayMap[shanghaiDay] ?? 0;
+  // Get today's midnight in Shanghai, then subtract offset days
+  const todayKey = formatDateTz(date);
+  const [y, m, d] = todayKey.split('-').map(Number);
+  const todayMidnight = midnightInTz(y, m, d);
+  return new Date(todayMidnight.getTime() - offset * 86_400_000);
 }
 
 function addDays(date: Date, days: number) {
-  const result = new Date(date);
-  result.setDate(result.getDate() + days);
-  return result;
+  return new Date(date.getTime() + days * 86_400_000);
+}
+
+function formatDashboardDate(date: Date, locale: 'zh-CN' | 'en') {
+  if (locale === 'en') {
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: APP_TIMEZONE,
+      weekday: 'long',
+      month: 'short',
+      day: '2-digit',
+    });
+    const parts = formatter.formatToParts(date);
+    const weekday = parts.find((part) => part.type === 'weekday')?.value ?? '';
+    const month = parts.find((part) => part.type === 'month')?.value ?? '';
+    const day = parts.find((part) => part.type === 'day')?.value ?? '';
+
+    return `${weekday.toUpperCase()} · ${month.toUpperCase()} ${day}`;
+  }
+
+  const formatter = new Intl.DateTimeFormat('zh-CN', {
+    timeZone: APP_TIMEZONE,
+    month: '2-digit',
+    day: '2-digit',
+    weekday: 'long',
+  });
+  const parts = formatter.formatToParts(date);
+  const month = parts.find((part) => part.type === 'month')?.value ?? '';
+  const day = parts.find((part) => part.type === 'day')?.value ?? '';
+  const weekday = parts.find((part) => part.type === 'weekday')?.value ?? '';
+
+  return `${month}${day}日${weekday}`;
 }

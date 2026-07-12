@@ -6,8 +6,16 @@ import {apiSuccess} from '@/lib/api-response';
 import {prisma} from '@/lib/db';
 import {MAX_PROMPT_TEMPLATE_CHARS} from '@/lib/prompt';
 import {DEFAULT_PROMPT_TEMPLATES} from '@/lib/prompts/default-templates';
+import {
+  buildPromptTemplateReadScope,
+  makePromptTemplateKey,
+  serializePromptTemplate,
+  sortPromptTemplates,
+} from '@/lib/prompts/templates';
 
-export const GET = withAuth(async (req: NextRequest) => {
+const SCENES = ['swimming', 'running', 'study', 'daily'] as const;
+
+export const GET = withAuth(async (req: NextRequest, _context, session) => {
   const {searchParams} = new URL(req.url);
   const scene = searchParams.get('scene');
   const includeInactive = searchParams.get('includeInactive') === '1';
@@ -16,22 +24,24 @@ export const GET = withAuth(async (req: NextRequest) => {
 
   const data = await prisma.promptTemplate.findMany({
     where: {
-      ...(includeInactive ? {} : {isActive: true}),
-      ...(scene && scene !== 'all' ? {scene} : {}),
+      AND: [
+        buildPromptTemplateReadScope(session.user.id),
+        ...(includeInactive ? [] : [{isActive: true}]),
+        ...(scene && scene !== 'all' ? [{scene}] : []),
+      ],
     },
     orderBy: [
       {scene: 'asc'},
+      {userId: 'desc'},
       {updatedAt: 'desc'},
       {version: 'desc'},
     ],
   });
 
-  return apiSuccess(data);
+  return apiSuccess(sortPromptTemplates(data).map(serializePromptTemplate));
 });
 
-const SCENES = ['swimming', 'running', 'study', 'daily'] as const;
-
-export const POST = withAuth(async (req: NextRequest) => {
+export const POST = withAuth(async (req: NextRequest, _context, session) => {
   await ensureDefaultPromptTemplates();
 
   const body = await req.json().catch(() => null) as {
@@ -42,7 +52,7 @@ export const POST = withAuth(async (req: NextRequest) => {
   } | null;
 
   if (!body) {
-    throw new ApiError('BAD_REQUEST', '请求内容必须是有效的 JSON');
+    throw new ApiError('BAD_REQUEST', 'Request body must be valid JSON');
   }
 
   const name = typeof body.name === 'string' ? body.name.trim() : '';
@@ -51,70 +61,75 @@ export const POST = withAuth(async (req: NextRequest) => {
   const isActive = typeof body.isActive === 'boolean' ? body.isActive : true;
 
   if (!name) {
-    throw new ApiError('VALIDATION_ERROR', '模板名称不能为空');
+    throw new ApiError('VALIDATION_ERROR', 'Template name is required');
   }
   if (!content) {
-    throw new ApiError('VALIDATION_ERROR', '模板内容不能为空');
+    throw new ApiError('VALIDATION_ERROR', 'Template content is required');
   }
   if (!SCENES.includes(scene as (typeof SCENES)[number])) {
-    throw new ApiError('VALIDATION_ERROR', '模板主题不合法');
+    throw new ApiError('VALIDATION_ERROR', 'Template scene is invalid');
   }
   if (name.length > 100) {
-    throw new ApiError('VALIDATION_ERROR', '模板名称不能超过 100 个字符');
+    throw new ApiError('VALIDATION_ERROR', 'Template name must be 100 characters or fewer');
   }
   if (content.length > MAX_PROMPT_TEMPLATE_CHARS) {
-    throw new ApiError('VALIDATION_ERROR', `Prompt 模板不能超过 ${MAX_PROMPT_TEMPLATE_CHARS} 个字符`);
+    throw new ApiError('VALIDATION_ERROR', `Prompt template must be ${MAX_PROMPT_TEMPLATE_CHARS} characters or fewer`);
   }
 
   const existingTemplates = await prisma.promptTemplate.findMany({
-    where: {scene},
+    where: {
+      userId: session.user.id,
+      scene,
+    },
     select: {version: true},
     orderBy: {version: 'desc'},
   });
 
+  const version = getNextVersion(existingTemplates.map((template) => template.version));
   const created = await prisma.promptTemplate.create({
     data: {
+      userId: session.user.id,
+      templateKey: makePromptTemplateKey({
+        userId: session.user.id,
+        scene,
+        version,
+      }),
       name,
       scene,
-      version: getNextVersion(existingTemplates.map((template) => template.version)),
+      version,
       content,
       isActive,
     },
   });
 
-  return apiSuccess(created, '创建成功', 201);
+  return apiSuccess(serializePromptTemplate(created), 'Template created', 201);
 });
 
 async function ensureDefaultPromptTemplates() {
-  const existing = await prisma.promptTemplate.findMany({
-    where: {
-      OR: DEFAULT_PROMPT_TEMPLATES.map((template) => ({
+  await Promise.all(
+    DEFAULT_PROMPT_TEMPLATES.map((template) => {
+      const templateKey = makePromptTemplateKey({
+        userId: null,
         scene: template.scene,
         version: template.version,
-      })),
-    },
-    select: {
-      scene: true,
-      version: true,
-    },
-  });
+      });
 
-  const existingKeys = new Set(existing.map((template) => `${template.scene}:${template.version}`));
-  const missingTemplates = DEFAULT_PROMPT_TEMPLATES.filter(
-    (template) => !existingKeys.has(`${template.scene}:${template.version}`)
+      return prisma.promptTemplate.upsert({
+        where: {templateKey},
+        update: {
+          name: template.name,
+          content: template.content,
+          isActive: true,
+        },
+        create: {
+          userId: null,
+          templateKey,
+          ...template,
+          isActive: true,
+        },
+      });
+    })
   );
-
-  if (missingTemplates.length === 0) {
-    return;
-  }
-
-  await prisma.promptTemplate.createMany({
-    data: missingTemplates.map((template) => ({
-      ...template,
-      isActive: true,
-    })),
-    skipDuplicates: true,
-  });
 }
 
 function getNextVersion(existingVersions: string[]) {

@@ -27,17 +27,20 @@ import {
 } from 'antd';
 import type {MenuProps} from 'antd';
 import {useLocale, useTranslations} from 'next-intl';
-import {useEffect, useState} from 'react';
+import {useCallback, useEffect, useMemo, useState} from 'react';
 
 import {AuthModal} from '@/components/auth/auth-modal';
 import {appTheme} from '@/config/theme';
 import {useAuth} from '@/hooks/use-auth';
-import {usePathname, useRouter} from '@/i18n/navigation';
+import {Link, usePathname, useRouter} from '@/i18n/navigation';
 import type {AppLocale} from '@/i18n/routing';
 
 const {Header, Content, Sider} = Layout;
+const MENU_STYLE = {borderInlineEnd: 0, paddingInline: 10};
+const DEFAULT_SIDEBAR_SUMMARY = {currentStreak: 0, progressPercent: 0};
 
 type NavKey = '/' | '/create' | '/calendar' | '/history' | '/prompt-settings' | '/profile';
+const PREFETCH_NAV_KEYS: NavKey[] = ['/create', '/calendar', '/history', '/prompt-settings', '/profile'];
 
 export function DashboardShell({children}: {children: React.ReactNode}) {
   const t = useTranslations('Navigation');
@@ -53,6 +56,11 @@ export function DashboardShell({children}: {children: React.ReactNode}) {
   });
 
   const {user, isAuthenticated, status, openAuthModal, logout} = useAuth();
+
+  useEffect(() => {
+    const prefetchRouter = router as typeof router & {prefetch?: (href: NavKey) => void};
+    PREFETCH_NAV_KEYS.forEach((href) => prefetchRouter.prefetch?.(href));
+  }, [router]);
 
   useEffect(() => {
     if (status === 'loading' || !isAuthenticated) {
@@ -90,39 +98,41 @@ export function DashboardShell({children}: {children: React.ReactNode}) {
     return () => controller.abort();
   }, [isAuthenticated, status]);
 
-  const visibleSidebarSummary = isAuthenticated
-    ? sidebarSummary
-    : {currentStreak: 0, progressPercent: 0};
+  const visibleSidebarSummary = isAuthenticated ? sidebarSummary : DEFAULT_SIDEBAR_SUMMARY;
 
-  const navigationItems: MenuProps['items'] = [
-    {key: '/', icon: <DashboardOutlined />, label: t('dashboard')},
-    {key: '/create', icon: <EditOutlined />, label: t('create')},
-    {key: '/calendar', icon: <CalendarOutlined />, label: t('calendar')},
-    {key: '/history', icon: <FileTextOutlined />, label: t('history')},
-    {key: '/prompt-settings', icon: <SettingOutlined />, label: t('prompts')},
-    {key: '/profile', icon: <UserOutlined />, label: t('profile')}
-  ];
+  const navigationItems = useMemo<NonNullable<MenuProps['items']>>(() => [
+    {key: '/', icon: <DashboardOutlined />, label: <Link href="/">{t('dashboard')}</Link>},
+    {key: '/create', icon: <EditOutlined />, label: <Link href="/create">{t('create')}</Link>},
+    {key: '/calendar', icon: <CalendarOutlined />, label: <Link href="/calendar">{t('calendar')}</Link>},
+    {key: '/history', icon: <FileTextOutlined />, label: <Link href="/history">{t('history')}</Link>},
+    {key: '/prompt-settings', icon: <SettingOutlined />, label: <Link href="/prompt-settings">{t('prompts')}</Link>},
+    {key: '/profile', icon: <UserOutlined />, label: <Link href="/profile">{t('profile')}</Link>}
+  ], [t]);
 
-  const selectedKey =
-    navigationItems.find((item) => item && 'key' in item && item.key !== '/' && pathname.startsWith(String(item.key)))?.key ?? '/';
+  const selectedKey = useMemo(
+    () => navigationItems.find((item) => item && 'key' in item && item.key !== '/' && pathname.startsWith(String(item.key)))?.key ?? '/',
+    [navigationItems, pathname]
+  );
+  const selectedKeys = useMemo(() => [String(selectedKey)], [selectedKey]);
 
-  const navigate: MenuProps['onClick'] = ({key}) => {
-    router.push(key as NavKey);
+  const navigate = useCallback<NonNullable<MenuProps['onClick']>>(() => {
     setDrawerOpen(false);
-  };
+  }, []);
 
-  const localeItems: MenuProps['items'] = [
+  const localeItems = useMemo<NonNullable<MenuProps['items']>>(() => [
     {key: 'zh-CN', label: '简体中文'},
     {key: 'en', label: 'English'}
-  ];
+  ], []);
 
-  const switchLocale: MenuProps['onClick'] = ({key}) => {
-    router.replace(pathname, {locale: key as AppLocale});
-  };
+  const switchLocale = useCallback<NonNullable<MenuProps['onClick']>>(({key}) => {
+    if (key !== locale) {
+      router.replace(pathname, {locale: key as AppLocale});
+    }
+  }, [locale, pathname, router]);
 
   // ── User dropdown menu (when authenticated) ─────────────────────────────
 
-  const userMenuItems: MenuProps['items'] = [
+  const userMenuItems = useMemo<NonNullable<MenuProps['items']>>(() => [
     {
       key: 'profile',
       icon: <UserOutlined />,
@@ -137,15 +147,15 @@ export function DashboardShell({children}: {children: React.ReactNode}) {
       danger: true,
       onClick: logout,
     },
-  ];
+  ], [logout, router, tAuth]);
 
   const navigation = (
     <Menu
       mode="inline"
       items={navigationItems}
-      selectedKeys={[String(selectedKey)]}
+      selectedKeys={selectedKeys}
       onClick={navigate}
-      style={{borderInlineEnd: 0, paddingInline: 10}}
+      style={MENU_STYLE}
     />
   );
 

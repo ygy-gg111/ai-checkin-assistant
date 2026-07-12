@@ -2,10 +2,12 @@ import {NextRequest} from 'next/server';
 
 import {ApiError} from '@/lib/api-handler';
 import {withAuth} from '@/lib/auth/guard';
+import {assertUserRateLimit} from '@/lib/auth/rate-limit';
 import {apiSuccess} from '@/lib/api-response';
 import {getAIProvider} from '@/lib/ai';
 import {prisma} from '@/lib/db';
 import {formatPostDetail, formatPostListItem} from '@/lib/posts/format';
+import {buildPromptTemplateReadScope} from '@/lib/prompts/templates';
 import {clampPromptInputText, composePromptTemplate} from '@/lib/prompt';
 
 type PostRouteContext = {params: Promise<{id: string}> | {id: string}};
@@ -15,6 +17,17 @@ export const POST = withAuth(async (
   context: PostRouteContext,
   session
 ) => {
+  assertUserRateLimit(session.user.id, {
+    bucket: 'ai-content-burst',
+    max: 5,
+    windowMs: 5 * 60 * 1000,
+  });
+  assertUserRateLimit(session.user.id, {
+    bucket: 'ai-content-hour',
+    max: 20,
+    windowMs: 60 * 60 * 1000,
+  });
+
   const resolvedParams = await Promise.resolve(context.params);
   const {id} = resolvedParams;
 
@@ -53,10 +66,20 @@ export const POST = withAuth(async (
   const nextPromptTemplate = promptTemplateId
     ? await prisma.promptTemplate.findFirst({
         where: {
-          id: promptTemplateId,
-          scene: post.topic,
-          isActive: true,
+          AND: [
+            buildPromptTemplateReadScope(session.user.id),
+            {
+              id: promptTemplateId,
+              scene: post.topic,
+              isActive: true,
+            },
+          ],
         },
+        orderBy: [
+          {userId: 'desc'},
+          {updatedAt: 'desc'},
+          {version: 'desc'},
+        ],
       })
     : post.promptTemplate;
 

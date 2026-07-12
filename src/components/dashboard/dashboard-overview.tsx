@@ -10,7 +10,7 @@ import {
 } from '@ant-design/icons';
 import {App, Button, Card, Col, Row, Tag, Typography} from 'antd';
 import {useLocale, useTranslations} from 'next-intl';
-import {useEffect, useMemo, useState} from 'react';
+import {useEffect, useState} from 'react';
 
 import {useAuth} from '@/hooks/use-auth';
 import {useRouter} from '@/i18n/navigation';
@@ -57,6 +57,10 @@ interface DashboardUsage {
 }
 
 interface DashboardApiData {
+  today: {
+    date: string;
+    displayDate: string;
+  };
   stats: DashboardStats;
   recentPosts: DashboardRecentPost[];
   weekly: {
@@ -83,29 +87,6 @@ export function DashboardOverview() {
   const {isAuthenticated, status} = useAuth();
   const [data, setData] = useState<DashboardApiData | null>(null);
 
-  const formattedDate = useMemo(() => {
-    const now = new Date();
-    try {
-      const formatter = new Intl.DateTimeFormat(isEn ? 'en-US' : 'zh-CN', {
-        weekday: 'long',
-        month: 'short',
-        day: '2-digit',
-      });
-      const parts = formatter.formatToParts(now);
-      const weekday = parts.find((part) => part.type === 'weekday')?.value ?? '';
-      const month = parts.find((part) => part.type === 'month')?.value ?? '';
-      const day = parts.find((part) => part.type === 'day')?.value ?? '';
-
-      if (isEn) {
-        return `${weekday.toUpperCase()} · ${month.toUpperCase()} ${day}`;
-      }
-
-      return `${month}${day}日${weekday}`;
-    } catch {
-      return 'TODAY';
-    }
-  }, [isEn]);
-
   useEffect(() => {
     if (status === 'loading' || !isAuthenticated) {
       return;
@@ -115,7 +96,7 @@ export function DashboardOverview() {
 
     async function loadDashboard() {
       try {
-        const response = await fetch('/api/dashboard', {
+        const response = await fetch(`/api/dashboard?locale=${encodeURIComponent(locale)}`, {
           signal: controller.signal,
         });
         if (!response.ok) {
@@ -128,14 +109,14 @@ export function DashboardOverview() {
         if (error instanceof DOMException && error.name === 'AbortError') {
           return;
         }
-        message.error(isEn ? 'Failed to load dashboard' : '棣栭〉鏁版嵁鍔犺浇澶辫触');
+        message.error(isEn ? 'Failed to load dashboard' : '工作台数据加载失败');
       }
     }
 
     void loadDashboard();
 
     return () => controller.abort();
-  }, [isAuthenticated, isEn, message, status]);
+  }, [isAuthenticated, isEn, locale, message, status]);
 
   const stats = data?.stats ?? {
     streakDays: 0,
@@ -161,14 +142,15 @@ export function DashboardOverview() {
       await navigator.clipboard.writeText(text);
       message.success(t('copied'));
     } catch {
-      message.error(isEn ? 'Failed to copy' : '澶嶅埗澶辫触');
+      message.error(isEn ? 'Failed to copy' : '复制失败');
     }
   };
 
   const weeklyLabel = formatWeekRange(weekDays, locale);
   const usageDetail = isEn
-    ? `${formatTokenCount(usage.totalTokens)} tokens used 路 Est. cost RMB ${usage.estimatedCostCny.toFixed(2)}`
-    : `宸蹭娇鐢?${formatTokenCount(usage.totalTokens)} tokens 路 棰勮鎴愭湰 楼${usage.estimatedCostCny.toFixed(2)}`;
+    ? `${formatTokenCount(usage.totalTokens)} tokens used · Est. cost RMB ${usage.estimatedCostCny.toFixed(2)}`
+    : `已使用 ${formatTokenCount(usage.totalTokens)} tokens · 预计成本 ¥${usage.estimatedCostCny.toFixed(2)}`;
+  const formattedDate = data?.today?.displayDate ?? formatDashboardDate(new Date(), isEn);
 
   return (
     <div style={{display: 'flex', flexDirection: 'column', gap: 20}}>
@@ -245,7 +227,7 @@ export function DashboardOverview() {
               {stats.generatedCount} <small>{t('postUnit')}</small>
             </div>
             <div className="dashboard-stat-delta" style={{color: '#8b5cf6'}}>
-              {isEn ? 'Generated this month' : '鏈湀鐢熸垚'}
+              {isEn ? 'Generated this month' : '本月生成'}
             </div>
           </Card>
         </Col>
@@ -260,7 +242,7 @@ export function DashboardOverview() {
               {formatTopicLabel(stats.currentTopic, isEn)}
             </div>
             <div className="dashboard-stat-delta" style={{color: '#059669'}}>
-              {stats.currentTopicDayCount ? `${t('dayLabel')} ${stats.currentTopicDayCount} 路 ${isEn ? 'In progress' : '鎸佺画杩涜涓?'}` : t('topicDelta')}
+              {stats.currentTopicDayCount ? `${t('dayLabel')} ${stats.currentTopicDayCount} · ${isEn ? 'In progress' : '持续进行中'}` : t('topicDelta')}
             </div>
           </Card>
         </Col>
@@ -313,7 +295,7 @@ export function DashboardOverview() {
                         {formatTopicLabel(topicKey, isEn)}
                       </span>
                       <span>{formatRecordTime(post, isEn)}</span>
-                      {post.dayCount ? <span>路 {t('dayLabel')} {post.dayCount}</span> : null}
+                      {post.dayCount ? <span>· {t('dayLabel')} {post.dayCount}</span> : null}
                     </div>
                   </div>
                   <Button
@@ -379,13 +361,13 @@ export function DashboardOverview() {
 function formatTopicLabel(topic: string, isEn: boolean) {
   switch (topic) {
     case 'swimming':
-      return isEn ? 'Swimming' : '娓告吵';
+      return isEn ? 'Swimming' : '游泳';
     case 'running':
-      return isEn ? 'Running' : '璺戞';
+      return isEn ? 'Running' : '跑步';
     case 'study':
-      return isEn ? 'Study' : '瀛︿範';
+      return isEn ? 'Study' : '学习';
     default:
-      return isEn ? 'Daily' : '鏃ュ父';
+      return isEn ? 'Daily' : '日常';
   }
 }
 
@@ -408,6 +390,28 @@ function formatWeekRange(weekDays: DashboardWeekDay[], locale: string) {
   }
 
   return `${first.getMonth() + 1} 月 ${first.getDate()} 日 - ${last.getMonth() + 1} 月 ${last.getDate()} 日`;
+}
+
+function formatDashboardDate(date: Date, isEn: boolean) {
+  if (isEn) {
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      weekday: 'long',
+      month: 'short',
+      day: '2-digit',
+    });
+    const parts = formatter.formatToParts(date);
+    const weekday = parts.find((part) => part.type === 'weekday')?.value ?? '';
+    const month = parts.find((part) => part.type === 'month')?.value ?? '';
+    const day = parts.find((part) => part.type === 'day')?.value ?? '';
+
+    return `${weekday.toUpperCase()} · ${month.toUpperCase()} ${day}`;
+  }
+
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const weekday = new Intl.DateTimeFormat('zh-CN', {weekday: 'long'}).format(date);
+
+  return `${month}${day}日${weekday}`;
 }
 
 function formatTokenCount(value: number) {

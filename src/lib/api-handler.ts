@@ -45,6 +45,7 @@ type ApiHandler<TContext> = (
 export function withApiHandler<TContext>(handler: ApiHandler<TContext>) {
   return async (request: NextRequest, context: TContext) => {
     try {
+      assertSameOriginForMutations(request);
       return await handler(request, context);
     } catch (error) {
       return handleApiError(error);
@@ -90,4 +91,66 @@ function getPrismaErrorCode(error: unknown) {
   }
 
   return null;
+}
+
+function assertSameOriginForMutations(request: NextRequest) {
+  if (['GET', 'HEAD', 'OPTIONS'].includes(request.method.toUpperCase())) {
+    return;
+  }
+
+  const origin = request.headers.get('origin');
+  if (!origin) {
+    throw new ApiError('FORBIDDEN', 'Cross-site request blocked');
+  }
+
+  const expectedOrigin = getExpectedRequestOrigin(request);
+  if (origin === expectedOrigin) {
+    return;
+  }
+
+  if (process.env.NODE_ENV !== 'production' && isEquivalentLocalOrigin(origin, expectedOrigin)) {
+    return;
+  }
+
+  throw new ApiError('FORBIDDEN', 'Cross-site request blocked');
+}
+
+function getExpectedRequestOrigin(request: NextRequest) {
+  const requestUrl = new URL(request.url);
+  const protocol = request.headers.get('x-forwarded-proto') ?? requestUrl.protocol.replace(/:$/, '');
+  const host = request.headers.get('x-forwarded-host')
+    ?? request.headers.get('host')
+    ?? requestUrl.host;
+
+  return `${protocol}://${host}`;
+}
+
+function isEquivalentLocalOrigin(origin: string, expectedOrigin: string) {
+  try {
+    const actualUrl = new URL(origin);
+    const expectedUrl = new URL(expectedOrigin);
+
+    if (
+      actualUrl.protocol !== expectedUrl.protocol ||
+      normalizePort(actualUrl) !== normalizePort(expectedUrl)
+    ) {
+      return false;
+    }
+
+    return isLocalHost(actualUrl.hostname) && isLocalHost(expectedUrl.hostname);
+  } catch {
+    return false;
+  }
+}
+
+function normalizePort(url: URL) {
+  if (url.port) {
+    return url.port;
+  }
+
+  return url.protocol === 'https:' ? '443' : '80';
+}
+
+function isLocalHost(hostname: string) {
+  return ['127.0.0.1', 'localhost', '::1'].includes(hostname);
 }
