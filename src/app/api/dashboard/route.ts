@@ -4,6 +4,7 @@ import {withAuth} from '@/lib/auth/guard';
 import {apiSuccess} from '@/lib/api-response';
 import {calculateStreakStats, toDateKey} from '@/lib/calendar/stats';
 import {prisma} from '@/lib/db';
+import {readOrFallback} from '@/lib/db/read-retry';
 import {formatPostListItem} from '@/lib/posts/format';
 import {APP_TIMEZONE, formatDateTz, midnightInTz} from '@/lib/timezone';
 import {getMonthlyUsageStats} from '@/lib/usage/monthly';
@@ -27,67 +28,49 @@ export const GET = withAuth(async (req: NextRequest, _context, session) => {
     userId: session.user.id,
     status: {not: 'DELETED' as const},
   };
+  const degradedSections: string[] = [];
 
-  const [
-    latestPosts,
-    latestPost,
-    totalGenerated,
-    monthPosts,
-    streakPosts,
-    weekPosts,
-    usageStats,
-  ] = await Promise.all([
-    prisma.post.findMany({
+  const [latestPosts, latestPost, totalGenerated, monthPosts, streakPosts, weekPosts, usageStats] = await Promise.all([
+    readOrFallback(() => prisma.post.findMany({
       where: baseWhere,
-      include: {
-        images: {
-          orderBy: {sortOrder: 'asc'},
-        },
-      },
+      include: {images: {orderBy: {sortOrder: 'asc'}}},
       orderBy: {checkinDate: 'desc'},
       take: 3,
-    }),
-    prisma.post.findFirst({
+    }), [], 'recentPosts', degradedSections),
+    readOrFallback(() => prisma.post.findFirst({
       where: baseWhere,
-      select: {
-        topic: true,
-        dayCount: true,
-      },
+      select: {topic: true, dayCount: true},
       orderBy: {checkinDate: 'desc'},
-    }),
-    prisma.post.count({where: baseWhere}),
-    prisma.post.findMany({
-      where: {
-        ...baseWhere,
-        checkinDate: {
-          gte: monthStart,
-          lt: nextMonthStart,
-        },
-      },
-      select: {
-        checkinDate: true,
-      },
-    }),
-    prisma.post.findMany({
+    }), null, 'currentTopic', degradedSections),
+    readOrFallback(() => prisma.post.count({where: baseWhere}), 0, 'totalGenerated', degradedSections),
+    readOrFallback(() => prisma.post.findMany({
+      where: {...baseWhere, checkinDate: {gte: monthStart, lt: nextMonthStart}},
+      select: {checkinDate: true},
+    }), [], 'monthlyCheckins', degradedSections),
+    readOrFallback(() => prisma.post.findMany({
       where: baseWhere,
-      select: {
-        checkinDate: true,
-      },
+      select: {checkinDate: true},
       orderBy: {checkinDate: 'asc'},
-    }),
-    prisma.post.findMany({
-      where: {
-        ...baseWhere,
-        checkinDate: {
-          gte: weekStart,
-          lt: addDays(weekDates[6], 1),
-        },
-      },
-      select: {
-        checkinDate: true,
-      },
-    }),
-    getMonthlyUsageStats(session.user.id),
+    }), [], 'streak', degradedSections),
+    readOrFallback(() => prisma.post.findMany({
+      where: {...baseWhere, checkinDate: {gte: weekStart, lt: addDays(weekDates[6], 1)}},
+      select: {checkinDate: true},
+    }), [], 'weekly', degradedSections),
+    readOrFallback(() => getMonthlyUsageStats(session.user.id), {
+      monthLabel: `${curYear}.${String(curMonth).padStart(2, '0')}`,
+      monthlyCalls: 0,
+      callLimit: 100,
+      callPercent: 0,
+      totalTokens: 0,
+      tokenLimit: 100000,
+      tokenPercent: 0,
+      postsGenerated: 0,
+      postGoal: 50,
+      postPercent: 0,
+      estimatedCostCny: 0,
+      provider: 'openai',
+      model: 'gpt-4o-mini',
+    }, 'usage', degradedSections),
   ]);
 
   const monthlyCheckins = new Set(monthPosts.map((post) => toDateKey(post.checkinDate))).size;
@@ -134,6 +117,7 @@ export const GET = withAuth(async (req: NextRequest, _context, session) => {
       model: usageStats.model,
       estimatedCostCny: usageStats.estimatedCostCny,
     },
+    degradedSections,
   });
 });
 

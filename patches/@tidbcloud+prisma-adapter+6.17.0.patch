@@ -1,0 +1,28 @@
+diff --git a/node_modules/@tidbcloud/prisma-adapter/dist/index.js b/node_modules/@tidbcloud/prisma-adapter/dist/index.js
+index e4783c5..5399774 100644
+--- a/node_modules/@tidbcloud/prisma-adapter/dist/index.js
++++ b/node_modules/@tidbcloud/prisma-adapter/dist/index.js
+@@ -96,6 +96,9 @@ function fieldToColumnType(field) {
+   }
+ }
+ var customDecoder = {
++  // Prisma 7 expects JSON scalar values as strings. TiDB's HTTPS driver
++  // already deserializes them to objects, so serialize once at the boundary.
++  JSON: (value) => typeof value === "string" ? value : JSON.stringify(value),
+   BINARY: (value) => Array.from(hexToUint8Array(value)),
+   VARBINARY: (value) => Array.from(hexToUint8Array(value)),
+   BLOB: (value) => Array.from(hexToUint8Array(value)),
+diff --git a/node_modules/@tidbcloud/prisma-adapter/dist/index.mjs b/node_modules/@tidbcloud/prisma-adapter/dist/index.mjs
+index bc2a3f7..ec13296 100644
+--- a/node_modules/@tidbcloud/prisma-adapter/dist/index.mjs
++++ b/node_modules/@tidbcloud/prisma-adapter/dist/index.mjs
+@@ -62,6 +62,9 @@ function fieldToColumnType(field) {
+   }
+ }
+ var customDecoder = {
++  // Prisma 7 expects JSON scalar values as strings. TiDB's HTTPS driver
++  // already deserializes them to objects, so serialize once at the boundary.
++  JSON: (value) => typeof value === "string" ? value : JSON.stringify(value),
+   BINARY: (value) => Array.from(hexToUint8Array(value)),
+   VARBINARY: (value) => Array.from(hexToUint8Array(value)),
+   BLOB: (value) => Array.from(hexToUint8Array(value)),

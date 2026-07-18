@@ -8,7 +8,7 @@ import {
   StarOutlined,
   SyncOutlined
 } from '@ant-design/icons';
-import {App, Button, Card, Col, Row, Tag, Typography} from 'antd';
+import {Alert, App, Button, Card, Col, Row, Tag, Typography} from 'antd';
 import {useLocale, useTranslations} from 'next-intl';
 import {useEffect, useState} from 'react';
 
@@ -69,6 +69,7 @@ interface DashboardApiData {
     days: DashboardWeekDay[];
   };
   usage: DashboardUsage;
+  degradedSections?: string[];
 }
 
 const TOPIC_STYLES: Record<string, {color: string; background: string}> = {
@@ -86,6 +87,8 @@ export function DashboardOverview() {
   const {message} = App.useApp();
   const {isAuthenticated, status} = useAuth();
   const [data, setData] = useState<DashboardApiData | null>(null);
+  const [loadError, setLoadError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     if (status === 'loading' || !isAuthenticated) {
@@ -95,6 +98,7 @@ export function DashboardOverview() {
     const controller = new AbortController();
 
     async function loadDashboard() {
+      setLoadError(false);
       try {
         const response = await fetch(`/api/dashboard?locale=${encodeURIComponent(locale)}`, {
           signal: controller.signal,
@@ -109,14 +113,14 @@ export function DashboardOverview() {
         if (error instanceof DOMException && error.name === 'AbortError') {
           return;
         }
-        message.error(isEn ? 'Failed to load dashboard' : '工作台数据加载失败');
+        setLoadError(true);
       }
     }
 
     void loadDashboard();
 
     return () => controller.abort();
-  }, [isAuthenticated, isEn, locale, message, status]);
+  }, [isAuthenticated, locale, reloadKey, status]);
 
   const stats = data?.stats ?? {
     streakDays: 0,
@@ -154,6 +158,24 @@ export function DashboardOverview() {
 
   return (
     <div style={{display: 'flex', flexDirection: 'column', gap: 20}}>
+      {loadError ? (
+        <Alert
+          type="error"
+          showIcon
+          title={isEn ? 'The data connection is unstable' : '数据连接出现波动'}
+          description={isEn ? 'The dashboard could not be loaded. Please try again.' : '工作台数据暂时无法加载，请稍后重试。'}
+          action={<Button size="small" onClick={() => setReloadKey((value) => value + 1)}>{isEn ? 'Retry' : '重新加载'}</Button>}
+        />
+      ) : null}
+      {data?.degradedSections?.length ? (
+        <Alert
+          type="warning"
+          showIcon
+          title={isEn ? 'Some statistics are temporarily unavailable' : '部分统计暂时不可用'}
+          description={isEn ? 'Core content remains available. Retry later to refresh all statistics.' : '核心内容仍可使用，稍后重新加载可恢复完整统计。'}
+          action={<Button size="small" onClick={() => setReloadKey((value) => value + 1)}>{isEn ? 'Refresh' : '刷新'}</Button>}
+        />
+      ) : null}
       <Card className="dashboard-hero" styles={{body: {padding: 28}}}>
         <Row align="middle" justify="space-between" gutter={[20, 20]}>
           <Col xs={24} md={18}>

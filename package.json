@@ -6,14 +6,15 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "postinstall": "prisma generate",
+    "postinstall": "prisma generate && patch-package",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "typecheck": "tsc --noEmit",
     "prisma:validate": "prisma validate",
     "prisma:format": "prisma format",
     "prisma:generate": "prisma generate",
-    "db:migrate": "prisma migrate dev"
+    "db:migrate": "prisma migrate dev",
+    "storage:migrate:r2": "tsx scripts/migrate-local-images-to-r2.ts"
   },
   "dependencies": {
     "@ant-design/icons": "^6.3.2",
@@ -37,7 +38,9 @@
     "dotenv": "^17.4.2",
     "eslint": "^9.39.4",
     "eslint-config-next": "^16.2.10",
+    "patch-package": "^8.0.1",
     "prisma": "^7.8.0",
+    "tsx": "^4.20.6",
     "typescript": "^6.0.3"
   }
 }
