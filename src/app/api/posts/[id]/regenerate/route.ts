@@ -7,6 +7,7 @@ import {apiSuccess} from '@/lib/api-response';
 import {getAIProvider} from '@/lib/ai';
 import {prisma} from '@/lib/db';
 import {formatPostDetail, formatPostListItem} from '@/lib/posts/format';
+import {formatDayTitle} from '@/lib/posts/title';
 import {buildPromptTemplateReadScope} from '@/lib/prompts/templates';
 import {clampPromptInputText, composePromptTemplate} from '@/lib/prompt';
 
@@ -108,13 +109,15 @@ export const POST = withAuth(async (
       }),
     });
 
+    const title = formatDayTitle(post.dayCount, generated.title);
+
     const updatedPost = await prisma.post.update({
       where: {id: post.id},
       data: {
         promptTemplateId: nextPromptTemplate?.id ?? null,
         style,
         analysisJson: generated.analysis,
-        title: generated.title,
+        title,
         content: generated.content,
         tags: generated.tags,
         coverText: generated.coverText,
@@ -145,7 +148,7 @@ export const POST = withAuth(async (
       postId: updatedPost.id,
       analysis: generated.analysis,
       result: {
-        title: generated.title,
+        title,
         content: generated.content,
         tags: generated.tags,
         coverText: generated.coverText,

@@ -98,7 +98,8 @@ export function CreateCheckin() {
   const [description, setDescription] = useState('今天练蛙泳，腿还是不怎么走水，不过感觉比昨天轻松一点。');
   const [topic, setTopic] = useState<Topic>('swimming');
   const [style, setStyle] = useState<Style>('natural');
-  const [dayCount, setDayCount] = useState('12');
+  const [dayCount, setDayCount] = useState('1');
+  const [dayCountRefreshKey, setDayCountRefreshKey] = useState(0);
   const [promptTemplates, setPromptTemplates] = useState<PromptTemplate[]>([]);
   const [selectedPromptTemplateId, setSelectedPromptTemplateId] = useState<string | undefined>();
   const [isLoadingPrompts, setIsLoadingPrompts] = useState(false);
@@ -173,6 +174,41 @@ export function CreateCheckin() {
     };
   }, [isAuthenticated, message, status]);
 
+  useEffect(() => {
+    if (status === 'loading' || !isAuthenticated) {
+      return;
+    }
+
+    let ignore = false;
+    const loadNextDayCount = async () => {
+      try {
+        const response = await fetch(`/api/posts/next-day?topic=${encodeURIComponent(topic)}`);
+        const payload = await response.json() as {
+          message?: string;
+          data?: {nextDayCount?: number};
+        };
+
+        if (!response.ok || !Number.isInteger(payload.data?.nextDayCount)) {
+          throw new Error(payload.message || 'Failed to load next check-in day');
+        }
+
+        if (!ignore) {
+          setDayCount(String(payload.data!.nextDayCount));
+        }
+      } catch (error) {
+        if (!ignore) {
+          message.warning(error instanceof Error ? error.message : 'Failed to load next check-in day');
+        }
+      }
+    };
+
+    void loadNextDayCount();
+
+    return () => {
+      ignore = true;
+    };
+  }, [dayCountRefreshKey, isAuthenticated, message, status, topic]);
+
   const normalizeDayCount = (value: string) => {
     const parsed = Number.parseInt(value, 10);
     if (!Number.isFinite(parsed) || parsed < 1) {
@@ -226,6 +262,7 @@ export function CreateCheckin() {
 
       setResult(payload.data.result);
       setAiState('done');
+      setDayCountRefreshKey((current) => current + 1);
       message.success(t('generateSuccess'));
     } catch (error) {
       setAiState('ready');
@@ -241,7 +278,8 @@ export function CreateCheckin() {
     setUploadedImages([]);
     setTopic('swimming');
     setStyle('natural');
-    setDayCount('12');
+    setDayCount('1');
+    setDayCountRefreshKey((current) => current + 1);
     setSelectedPromptTemplateId(undefined);
     setResult(null);
     setAiState('ready');

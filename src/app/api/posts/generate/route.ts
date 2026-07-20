@@ -7,6 +7,7 @@ import {apiSuccess} from '@/lib/api-response';
 import {getAIProvider} from '@/lib/ai';
 import {prisma} from '@/lib/db';
 import {formatPostDetail} from '@/lib/posts/format';
+import {formatDayTitle} from '@/lib/posts/title';
 import {buildPromptTemplateReadScope} from '@/lib/prompts/templates';
 import {
   clampPromptInputText,
@@ -61,6 +62,7 @@ export const POST = withAuth(async (req: NextRequest, _context, session) => {
   }
 
   const normalizedTopic = topic.trim();
+  const normalizedDayCount = parseDayCount(dayCount);
   const normalizedPromptTemplateId = typeof promptTemplateId === 'string' ? promptTemplateId.trim() : '';
   const normalizedInputText = clampPromptInputText(inputText);
 
@@ -106,23 +108,25 @@ export const POST = withAuth(async (req: NextRequest, _context, session) => {
       inputText: normalizedInputText,
       imageUrls: normalizedImages.map((image) => image.url),
       style: typeof style === 'string' ? style : 'normal',
-      dayCount: parseDayCount(dayCount),
+      dayCount: normalizedDayCount,
       promptTemplate: composePromptTemplate({
         persona: userSetting?.persona,
         template: template?.content,
       }),
     });
 
+    const title = formatDayTitle(normalizedDayCount, generated.title);
+
     const post = await prisma.post.create({
       data: {
         userId: session.user.id,
         promptTemplateId: template?.id,
         topic: normalizedTopic,
-        dayCount: parseDayCount(dayCount),
+        dayCount: normalizedDayCount,
         style: typeof style === 'string' ? style : 'normal',
         inputText: normalizedInputText,
         analysisJson: generated.analysis,
-        title: generated.title,
+        title,
         content: generated.content,
         tags: generated.tags,
         coverText: generated.coverText,
@@ -163,7 +167,7 @@ export const POST = withAuth(async (req: NextRequest, _context, session) => {
       postId: post.id,
       analysis: generated.analysis,
       result: {
-        title: generated.title,
+        title,
         content: generated.content,
         tags: generated.tags,
         coverText: generated.coverText,
