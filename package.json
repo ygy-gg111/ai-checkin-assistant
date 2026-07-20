@@ -14,7 +14,8 @@
     "prisma:format": "prisma format",
     "prisma:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
-    "storage:migrate:r2": "tsx scripts/migrate-local-images-to-r2.ts"
+    "storage:migrate:r2": "tsx scripts/migrate-local-images-to-r2.ts",
+    "storage:cors:r2": "tsx scripts/configure-r2-cors.ts"
   },
   "dependencies": {
     "@ant-design/icons": "^6.3.2",

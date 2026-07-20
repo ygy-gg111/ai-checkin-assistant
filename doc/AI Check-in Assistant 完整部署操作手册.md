@@ -479,6 +479,23 @@ https://<ACCOUNT_ID>.r2.cloudflarestorage.com
 ]
 ```
 
+保存后，可以在项目根目录执行真实预检验证。该命令不会上传对象，也不需要修改 Bucket：
+
+```powershell
+npm.cmd run storage:cors:r2 -- --verify --origin https://ai-checkin-assistant.vercel.app
+```
+
+正确结果应包含：
+
+```text
+status: 204
+allowOrigin: https://ai-checkin-assistant.vercel.app
+allowMethods: PUT
+allowHeaders: content-type
+```
+
+如果使用的是具备 Bucket 管理权限的 R2 S3 凭据，也可以用同一脚本查看配置，或追加 `--apply` 写入配置。普通 `Object Read & Write` 密钥只能操作对象，读取或修改 CORS 时返回 `403 AccessDenied` 是正常的，此时请在 Cloudflare 控制台保存策略。
+
 判断正确：
 
 - 保存后策略仍能在 Settings 中看到；
