@@ -12,16 +12,19 @@ export const GET = withAuth(async (req: NextRequest, _context, session) => {
     throw new ApiError('VALIDATION_ERROR', '打卡主题(topic)为必填项');
   }
 
-  const where = {
+  const activeWhere = {
     userId: session.user.id,
     topic,
     status: {not: 'DELETED' as const},
   };
 
   const [postCount, dayCountAggregate] = await Promise.all([
-    prisma.post.count({where}),
+    prisma.post.count({where: activeWhere}),
     prisma.post.aggregate({
-      where,
+      where: {
+        userId: session.user.id,
+        topic,
+      },
       _max: {dayCount: true},
     }),
   ]);
@@ -31,6 +34,6 @@ export const GET = withAuth(async (req: NextRequest, _context, session) => {
   return apiSuccess({
     topic,
     postCount,
-    nextDayCount: Math.max(postCount, latestDayCount) + 1,
+    nextDayCount: latestDayCount + 1,
   });
 });

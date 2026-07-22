@@ -2,9 +2,10 @@
 
 import {
   PlusOutlined,
+  ReloadOutlined,
   UploadOutlined
 } from '@ant-design/icons';
-import {App, Button, Card, Col, Image, Input, Row, Select, Space, Typography} from 'antd';
+import {App, Button, Card, Col, Image, Input, Row, Select, Typography} from 'antd';
 import type {UploadFile} from 'antd';
 import {useLocale, useTranslations} from 'next-intl';
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
@@ -104,12 +105,14 @@ export function CreateCheckin() {
   const [selectedPromptTemplateId, setSelectedPromptTemplateId] = useState<string | undefined>();
   const [isLoadingPrompts, setIsLoadingPrompts] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const [isGenerating, setIsGenerating] = useState(false);
+  const [generationAction, setGenerationAction] = useState<'create' | 'regenerate' | null>(null);
   const [result, setResult] = useState<GeneratedResult | null>(null);
+  const [currentPostId, setCurrentPostId] = useState<string | null>(null);
   const [aiState, setAiState] = useState<'idle' | 'ready' | 'generating' | 'done'>('ready');
   const [activePreviewUrl, setActivePreviewUrl] = useState<string | null>(null);
   const [previewVisible, setPreviewVisible] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const pendingCreateRequestIdRef = useRef<string | null>(null);
 
   const descLength = description.length;
   const currentPromptTemplates = useMemo(
@@ -218,32 +221,40 @@ export function CreateCheckin() {
     return String(parsed);
   };
 
-  // Simulate generating
-  const handleGenerate = async () => {
+  const validateGenerationInput = () => {
     if (status !== 'loading' && !isAuthenticated) {
       message.warning(tAuth('requireLogin'));
       openAuthModal('login');
-      return;
+      return false;
     }
     if (!description.trim()) {
       message.warning(t('descRequired'));
-      return;
+      return false;
     }
     if (uploadedImages.length === 0) {
       message.warning('请先上传至少一张打卡图片');
+      return false;
+    }
+
+    return true;
+  };
+
+  const handleGenerate = async () => {
+    if (generationAction || !validateGenerationInput()) {
       return;
     }
-    setIsGenerating(true);
+    setGenerationAction('create');
     setAiState('generating');
-    setResult(null);
+    const clientRequestId = pendingCreateRequestIdRef.current ?? crypto.randomUUID();
+    pendingCreateRequestIdRef.current = clientRequestId;
 
     try {
       const response = await fetch('/api/posts/generate', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({
+          clientRequestId,
           topic,
-          dayCount: Number.parseInt(dayCount, 10) || 1,
           style,
           inputText: description,
           images: uploadedImages,
@@ -253,22 +264,79 @@ export function CreateCheckin() {
       const payload = await response.json() as {
         message?: string;
         data?: {
+          postId?: string;
           result?: GeneratedResult;
+          post?: {dayCount?: number | null};
         };
       };
-      if (!response.ok || !payload.data?.result) {
+      if (!response.ok || !payload.data?.postId || !payload.data.result) {
         throw new Error(payload.message || '生成失败');
       }
 
       setResult(payload.data.result);
+      setCurrentPostId(payload.data.postId);
+      if (Number.isInteger(payload.data.post?.dayCount)) {
+        setDayCount(String(payload.data.post!.dayCount));
+      }
+      pendingCreateRequestIdRef.current = null;
       setAiState('done');
-      setDayCountRefreshKey((current) => current + 1);
       message.success(t('generateSuccess'));
     } catch (error) {
-      setAiState('ready');
+      setAiState(result ? 'done' : 'ready');
       message.error(error instanceof Error ? error.message : '生成失败，请稍后重试');
     } finally {
-      setIsGenerating(false);
+      setGenerationAction(null);
+    }
+  };
+
+  const handleRegenerate = async () => {
+    if (generationAction || !validateGenerationInput()) {
+      return;
+    }
+    if (!currentPostId) {
+      message.warning(t('regenerateUnavailable'));
+      return;
+    }
+
+    setGenerationAction('regenerate');
+    setAiState('generating');
+
+    try {
+      const response = await fetch(`/api/posts/${encodeURIComponent(currentPostId)}/regenerate`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          topic,
+          style,
+          inputText: description,
+          images: uploadedImages,
+          promptTemplateId: effectivePromptTemplateId,
+        }),
+      });
+      const payload = await response.json() as {
+        message?: string;
+        data?: {
+          postId?: string;
+          result?: GeneratedResult;
+          post?: {dayCount?: number | null};
+        };
+      };
+      if (!response.ok || !payload.data?.postId || !payload.data.result) {
+        throw new Error(payload.message || t('regenerateFailed'));
+      }
+
+      setResult(payload.data.result);
+      setCurrentPostId(payload.data.postId);
+      if (Number.isInteger(payload.data.post?.dayCount)) {
+        setDayCount(String(payload.data.post!.dayCount));
+      }
+      setAiState('done');
+      message.success(t('regenerateSuccess'));
+    } catch (error) {
+      setAiState(result ? 'done' : 'ready');
+      message.error(error instanceof Error ? error.message : t('regenerateFailed'));
+    } finally {
+      setGenerationAction(null);
     }
   };
 
@@ -282,6 +350,8 @@ export function CreateCheckin() {
     setDayCountRefreshKey((current) => current + 1);
     setSelectedPromptTemplateId(undefined);
     setResult(null);
+    setCurrentPostId(null);
+    pendingCreateRequestIdRef.current = null;
     setAiState('ready');
     setActivePreviewUrl(null);
     setPreviewVisible(false);
@@ -516,7 +586,7 @@ export function CreateCheckin() {
             </div>
 
             {/* Topic + Day Count */}
-            <Row gutter={12}>
+            <Row gutter={12} className="create-topic-day-row">
               <Col flex="1.3">
                 <div className="create-field">
                   <label className="create-field-label"><span>{t('topicLabel')}</span></label>
@@ -731,10 +801,11 @@ export function CreateCheckin() {
 
       {/* ── STICKY FOOTER ── */}
       <div className="create-sticky-footer">
-        <Space size={10}>
+        <div className="create-footer-actions">
           <Button
             className="create-footer-btn"
             onClick={handleClear}
+            disabled={generationAction !== null || isUploading}
           >
             {t('clearBtn')}
           </Button>
@@ -747,15 +818,28 @@ export function CreateCheckin() {
             </Button>
           )}
           <Button
-            type="primary"
-            className="create-footer-primary"
-            loading={isGenerating}
+            type={result && currentPostId ? 'default' : 'primary'}
+            className={result && currentPostId ? 'create-footer-btn' : 'create-footer-primary'}
+            loading={generationAction === 'create'}
+            disabled={generationAction !== null || isUploading}
             onClick={handleGenerate}
             icon={<span style={{marginRight: 4}}>✦</span>}
           >
             {t('generateBtn')}
           </Button>
-        </Space>
+          {result && currentPostId && (
+            <Button
+              type="primary"
+              className="create-footer-primary"
+              loading={generationAction === 'regenerate'}
+              disabled={generationAction !== null || isUploading}
+              onClick={handleRegenerate}
+              icon={<ReloadOutlined />}
+            >
+              {t('regenerateBtn')}
+            </Button>
+          )}
+        </div>
       </div>
     </>
   );

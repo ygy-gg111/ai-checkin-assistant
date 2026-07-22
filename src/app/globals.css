@@ -839,6 +839,13 @@ body {
   backdrop-filter: blur(12px);
 }
 
+.create-footer-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
 .create-footer-btn {
   border-radius: 10px !important;
   border-color: var(--app-border) !important;
@@ -895,6 +902,9 @@ body {
     left: 0;
     padding: 0 16px;
   }
+  .create-footer-actions {
+    width: 100%;
+  }
   .create-footer-primary {
     min-width: 0 !important;
     flex: 1;
@@ -902,6 +912,60 @@ body {
 }
 
 @media (max-width: 640px) {
+  .app-header {
+    padding: 0 10px !important;
+  }
+  .app-content {
+    padding: 12px 10px;
+  }
+  .create-workspace {
+    gap: 12px;
+    padding-bottom: 116px;
+  }
+  .create-panel-head {
+    padding: 14px 14px 10px;
+  }
+  .create-form,
+  .create-preview-body {
+    padding: 12px 14px 14px;
+  }
+  .create-topic-day-row {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: 10px;
+  }
+  .create-topic-day-row > .ant-col {
+    flex: none !important;
+    max-width: 100%;
+    width: 100%;
+  }
+  .create-drop-zone {
+    padding: 14px 10px;
+  }
+  .create-chip {
+    flex: 1 1 calc(25% - 6px);
+    min-width: 64px;
+    padding-inline: 8px;
+    text-align: center;
+  }
+  .create-sticky-footer {
+    height: auto;
+    min-height: 0;
+    padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+  }
+  .create-footer-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .create-footer-actions .ant-btn,
+  .create-footer-btn,
+  .create-footer-primary {
+    width: 100%;
+    min-width: 0 !important;
+    height: 42px !important;
+    padding-inline: 8px !important;
+  }
   .create-thumbs {
     display: flex;
   }
@@ -1362,11 +1426,94 @@ body {
 }
 
 @media (max-width: 640px) {
+  .calendar-wrap {
+    min-width: 0;
+  }
+  .calendar-stats {
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .calendar-stat {
+    min-width: 0;
+    padding: 13px 12px;
+  }
+  .calendar-stat strong {
+    font-size: 20px;
+  }
+  .calendar-header-bar {
+    height: auto;
+    min-height: 62px;
+    padding: 12px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .calendar-month-nav {
+    width: 100%;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .calendar-month-nav h2 {
+    font-size: 16px;
+    text-align: center;
+  }
+  .calendar-legend {
+    width: 100%;
+    justify-content: center;
+    gap: 18px;
+  }
+  .calendar-grid-container {
+    padding: 8px 8px 10px;
+    overflow-x: visible;
+  }
+  .calendar-week-header,
+  .calendar-days-grid {
+    min-width: 0;
+    width: 100%;
+  }
   .calendar-detail-list {
     grid-template-columns: 1fr;
   }
   .calendar-day-cell {
-    min-height: 82px;
+    min-width: 0;
+    min-height: 54px;
+    padding: 5px 3px;
+    text-align: center;
+  }
+  .calendar-day-number {
+    display: inline-grid;
+    place-items: center;
+    min-width: 22px;
+    height: 22px;
+    font-size: 11px;
+  }
+  .calendar-day-number.calendar-today-number {
+    width: 22px;
+    height: 22px;
+  }
+  .calendar-day-tags {
+    display: flex;
+    justify-content: center;
+    gap: 3px;
+    margin-top: 4px;
+  }
+  .calendar-event {
+    width: 7px;
+    height: 7px;
+    padding: 0;
+    border-radius: 50%;
+    font-size: 0;
+  }
+  .calendar-check-mark {
+    right: 3px;
+    top: 4px;
+    font-size: 9px;
+  }
+  .calendar-detail-head {
+    padding-inline: 16px;
+  }
+  .calendar-add-btn {
+    width: calc(100% - 24px);
+    margin-inline: 12px;
   }
 }
 
@@ -1731,7 +1878,10 @@ body {
 @media (max-width: 900px) {
   .history-layout {
     grid-template-columns: 1fr;
+    grid-template-rows: auto;
     gap: 14px;
+    height: auto;
+    overflow: visible;
   }
   .history-filter {
     flex-wrap: wrap;
@@ -1745,6 +1895,11 @@ body {
   }
   .history-side-panel {
     grid-template-columns: repeat(2, 1fr);
+    overflow: visible;
+    padding-right: 0;
+  }
+  .history-list-scroll {
+    overflow-y: visible;
   }
   .history-table-head {
     display: none;
@@ -1776,6 +1931,9 @@ body {
 }
 
 @media (max-width: 640px) {
+  .history-layout {
+    gap: 12px;
+  }
   .history-post {
     grid-template-columns: 52px minmax(0, 1fr);
   }
@@ -1787,10 +1945,28 @@ body {
   }
   .history-filter {
     padding: 10px;
+    gap: 8px;
   }
   .history-select {
-    min-width: 120px;
+    min-width: 0;
+    flex: 1 1 calc(50% - 4px);
     font-size: 12px;
+  }
+  .history-btn-reset {
+    flex: 1 1 100%;
+  }
+  .history-item {
+    padding: 12px;
+  }
+  .history-pagination {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px;
+  }
+  .history-pages-container {
+    width: 100%;
+    justify-content: flex-end;
   }
   .history-side-panel {
     grid-template-columns: 1fr;
@@ -2209,8 +2385,40 @@ body {
 }
 
 @media (max-width: 640px) {
+  .prompt-layout {
+    gap: 12px;
+  }
   .prompt-templates-panel {
     grid-template-columns: 1fr 1fr;
+  }
+  .prompt-editor-top {
+    height: auto;
+    min-height: 48px;
+    padding: 10px 12px;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .prompt-file-info {
+    max-width: 100%;
+    flex: 1 1 180px;
+  }
+  .prompt-live-badge {
+    margin-left: auto;
+  }
+  .prompt-editor-body,
+  .prompt-preview-body {
+    padding: 14px;
+  }
+  .prompt-textarea.prompt-persona {
+    height: 132px;
+  }
+  .prompt-textarea.prompt-code {
+    height: 260px;
+  }
+  .prompt-versions-info,
+  .prompt-meta-info {
+    flex-wrap: wrap;
+    gap: 6px 12px;
   }
   .prompt-preview-body {
     grid-template-columns: 1fr;
@@ -2651,6 +2859,9 @@ body {
 }
 
 @media (max-width: 640px) {
+  .profile-grid {
+    gap: 12px;
+  }
   .profile-two-columns {
     grid-template-columns: 1fr;
   }
@@ -2660,13 +2871,42 @@ body {
   .profile-intro-section {
     padding: 19px;
   }
+  .profile-account-row {
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .profile-account-row > :last-child {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    text-align: right;
+  }
+  .profile-provider-box {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .profile-provider-left {
+    min-width: 0;
+  }
+  .profile-provider-left div {
+    min-width: 0;
+  }
+  .profile-provider-left small {
+    white-space: normal;
+  }
   .profile-savebar {
     position: sticky;
     bottom: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr);
     background: rgba(248, 250, 252, 0.93);
-    padding: 10px 0;
+    padding: 10px 0 calc(10px + env(safe-area-inset-bottom));
     backdrop-filter: blur(8px);
     z-index: 5;
+  }
+  .profile-savebar .btn {
+    width: 100%;
+    min-width: 0;
   }
   .profile-savebar .btn.primary {
     flex: 1;

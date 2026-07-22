@@ -8,16 +8,16 @@ datasource db {
 }
 
 model User {
-  id           String       @id @default(cuid())
-  email        String       @unique @db.VarChar(191)
-  passwordHash String       @db.VarChar(255)
-  name         String?      @db.VarChar(100)
-  avatar       String?      @db.VarChar(2048)
-  posts        Post[]
+  id              String           @id @default(cuid())
+  email           String           @unique @db.VarChar(191)
+  passwordHash    String           @db.VarChar(255)
+  name            String?          @db.VarChar(100)
+  avatar          String?          @db.VarChar(2048)
+  posts           Post[]
   promptTemplates PromptTemplate[]
-  setting      UserSetting?
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
+  setting         UserSetting?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
 }
 
 model UserSetting {
@@ -39,28 +39,29 @@ model UserSetting {
 }
 
 model Post {
-  id               String          @id @default(cuid())
-  userId           String?
-  user             User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
-  promptTemplateId String?
-  promptTemplate   PromptTemplate? @relation(fields: [promptTemplateId], references: [id], onDelete: SetNull)
-  topic            String          @db.VarChar(50)
-  dayCount         Int?
-  style            String          @default("normal") @db.VarChar(50)
-  inputText        String          @db.Text
-  analysisJson     Json?
-  title            String          @db.VarChar(255)
-  content          String          @db.Text
-  tags             Json
-  coverText        String?         @db.VarChar(255)
-  provider         String          @default("openai") @db.VarChar(50)
-  model            String          @default("gpt-4o-mini") @db.VarChar(100)
-  status           PostStatus      @default(GENERATED)
-  checkinDate      DateTime        @default(now())
-  images           PostImage[]
-  aiUsageLogs      AIUsageLog[]
-  createdAt        DateTime        @default(now())
-  updatedAt        DateTime        @updatedAt
+  id                   String          @id @default(cuid())
+  generationRequestKey String?         @unique @db.VarChar(191)
+  userId               String?
+  user                 User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
+  promptTemplateId     String?
+  promptTemplate       PromptTemplate? @relation(fields: [promptTemplateId], references: [id], onDelete: SetNull)
+  topic                String          @db.VarChar(50)
+  dayCount             Int?
+  style                String          @default("normal") @db.VarChar(50)
+  inputText            String          @db.Text
+  analysisJson         Json?
+  title                String          @db.VarChar(255)
+  content              String          @db.Text
+  tags                 Json
+  coverText            String?         @db.VarChar(255)
+  provider             String          @default("openai") @db.VarChar(50)
+  model                String          @default("gpt-4o-mini") @db.VarChar(100)
+  status               PostStatus      @default(GENERATED)
+  checkinDate          DateTime        @default(now())
+  images               PostImage[]
+  aiUsageLogs          AIUsageLog[]
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
 
   @@index([userId, createdAt])
   @@index([promptTemplateId])

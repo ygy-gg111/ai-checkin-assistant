@@ -24,25 +24,14 @@ type InputImage = {
 };
 
 export const POST = withAuth(async (req: NextRequest, _context, session) => {
-  assertUserRateLimit(session.user.id, {
-    bucket: 'ai-content-burst',
-    max: 5,
-    windowMs: 5 * 60 * 1000,
-  });
-  assertUserRateLimit(session.user.id, {
-    bucket: 'ai-content-hour',
-    max: 20,
-    windowMs: 60 * 60 * 1000,
-  });
-
   const body = await req.json().catch(() => null);
   if (!body || typeof body !== 'object') {
     throw new ApiError('BAD_REQUEST', '请求内容必须是有效的 JSON');
   }
 
   const {
+    clientRequestId,
     topic,
-    dayCount,
     style = 'normal',
     inputText,
     images = [],
@@ -51,6 +40,11 @@ export const POST = withAuth(async (req: NextRequest, _context, session) => {
 
   if (typeof topic !== 'string' || typeof inputText !== 'string' || !topic.trim() || !inputText.trim()) {
     throw new ApiError('VALIDATION_ERROR', '打卡主题(topic)和用户描述(inputText)为必填项');
+  }
+
+  const normalizedClientRequestId = typeof clientRequestId === 'string' ? clientRequestId.trim() : '';
+  if (!isUuid(normalizedClientRequestId)) {
+    throw new ApiError('VALIDATION_ERROR', '创建请求标识(clientRequestId)格式错误');
   }
   if (inputText.trim().length > MAX_PROMPT_INPUT_CHARS) {
     throw new ApiError('VALIDATION_ERROR', `用户描述不能超过 ${MAX_PROMPT_INPUT_CHARS} 个字符`);
@@ -62,11 +56,30 @@ export const POST = withAuth(async (req: NextRequest, _context, session) => {
   }
 
   const normalizedTopic = topic.trim();
-  const normalizedDayCount = parseDayCount(dayCount);
   const normalizedPromptTemplateId = typeof promptTemplateId === 'string' ? promptTemplateId.trim() : '';
   const normalizedInputText = clampPromptInputText(inputText);
+  const generationRequestKey = `${session.user.id}:${normalizedClientRequestId}`;
 
-  const [template, userSetting] = await Promise.all([
+  const existingPost = await prisma.post.findUnique({
+    where: {generationRequestKey},
+    include: {images: {orderBy: {sortOrder: 'asc'}}},
+  });
+  if (existingPost) {
+    return apiSuccess(formatGenerationResponse(existingPost, true));
+  }
+
+  assertUserRateLimit(session.user.id, {
+    bucket: 'ai-content-burst',
+    max: 5,
+    windowMs: 5 * 60 * 1000,
+  });
+  assertUserRateLimit(session.user.id, {
+    bucket: 'ai-content-hour',
+    max: 20,
+    windowMs: 60 * 60 * 1000,
+  });
+
+  const [template, userSetting, dayCountAggregate] = await Promise.all([
     prisma.promptTemplate.findFirst({
       where: {
         AND: [
@@ -88,7 +101,16 @@ export const POST = withAuth(async (req: NextRequest, _context, session) => {
       where: {userId: session.user.id},
       select: {persona: true},
     }),
+    prisma.post.aggregate({
+      where: {
+        userId: session.user.id,
+        topic: normalizedTopic,
+      },
+      _max: {dayCount: true},
+    }),
   ]);
+
+  const allocatedDayCount = (dayCountAggregate._max.dayCount ?? 0) + 1;
 
   if (normalizedPromptTemplateId && !template) {
     throw new ApiError('VALIDATION_ERROR', '所选 Prompt 模板不存在、未启用，或与当前打卡主题不匹配');
@@ -108,21 +130,24 @@ export const POST = withAuth(async (req: NextRequest, _context, session) => {
       inputText: normalizedInputText,
       imageUrls: normalizedImages.map((image) => image.url),
       style: typeof style === 'string' ? style : 'normal',
-      dayCount: normalizedDayCount,
+      dayCount: allocatedDayCount,
       promptTemplate: composePromptTemplate({
         persona: userSetting?.persona,
         template: template?.content,
       }),
     });
 
-    const title = formatDayTitle(normalizedDayCount, generated.title);
+    const title = formatDayTitle(allocatedDayCount, generated.title);
 
-    const post = await prisma.post.create({
-      data: {
+    const post = await prisma.post.upsert({
+      where: {generationRequestKey},
+      update: {},
+      create: {
+        generationRequestKey,
         userId: session.user.id,
         promptTemplateId: template?.id,
         topic: normalizedTopic,
-        dayCount: normalizedDayCount,
+        dayCount: allocatedDayCount,
         style: typeof style === 'string' ? style : 'normal',
         inputText: normalizedInputText,
         analysisJson: generated.analysis,
@@ -161,19 +186,11 @@ export const POST = withAuth(async (req: NextRequest, _context, session) => {
         totalTokens: generated.usage?.totalTokens,
         durationMs: Date.now() - startedAt,
       },
+    }).catch((error: unknown) => {
+      console.error('Failed to write successful AI usage log', error);
     });
 
-    return apiSuccess({
-      postId: post.id,
-      analysis: generated.analysis,
-      result: {
-        title,
-        content: generated.content,
-        tags: generated.tags,
-        coverText: generated.coverText,
-      },
-      post: formatPostDetail(post),
-    });
+    return apiSuccess(formatGenerationResponse(post, false));
   } catch (error) {
     await prisma.aIUsageLog.create({
       data: {
@@ -189,6 +206,26 @@ export const POST = withAuth(async (req: NextRequest, _context, session) => {
     throw new ApiError('AI_SERVICE_ERROR');
   }
 });
+
+function formatGenerationResponse(
+  post: Parameters<typeof formatPostDetail>[0],
+  reused: boolean,
+) {
+  const formattedPost = formatPostDetail(post);
+
+  return {
+    postId: post.id,
+    analysis: formattedPost.analysis,
+    result: {
+      title: formattedPost.title,
+      content: formattedPost.content,
+      tags: formattedPost.tags,
+      coverText: formattedPost.coverText,
+    },
+    post: formattedPost,
+    reused,
+  };
+}
 
 function normalizeImages(value: unknown): InputImage[] {
   if (!Array.isArray(value)) {
@@ -224,15 +261,6 @@ function getOptionalString(source: object, key: string) {
   return typeof value === 'string' ? value : null;
 }
 
-function parseDayCount(value: unknown) {
-  if (typeof value === 'number' && Number.isInteger(value) && value > 0) {
-    return value;
-  }
-
-  if (typeof value === 'string') {
-    const parsed = parseInt(value, 10);
-    return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
-  }
-
-  return undefined;
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }

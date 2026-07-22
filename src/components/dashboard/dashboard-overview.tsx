@@ -233,9 +233,6 @@ export function DashboardOverview() {
             <div className="dashboard-stat-value">
               {stats.monthlyCheckins} <small>{t('timeUnit')}</small>
             </div>
-            <div className="dashboard-stat-delta" style={{color: '#ea580c'}}>
-              {t('monthlyDelta')}
-            </div>
           </Card>
         </Col>
 
